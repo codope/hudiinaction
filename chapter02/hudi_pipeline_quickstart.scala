@@ -4,6 +4,8 @@ import org.apache.spark.sql.types.DoubleType
 import spark.implicits._
 
 
+// The dataset for this chapter is New York Taxi dataset sample of one million rows.
+// Untar the `chapter02/trips_0.gz` file to a location.
 // Please change to the path where the source data is saved
 val inputPath = "/Users/username/path/to/trips_0"
 // Please change to the path where the Hudi table will be created
