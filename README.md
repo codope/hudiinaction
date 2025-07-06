@@ -4,7 +4,7 @@ Welcome to the code repository for the upcoming book **"Hudi In Action"**. This 
 
 ## 📖 About the Book
 
-"Hudi In Action" is a comprehensive guide to Apache Hudi, covering everything from basic concepts to advanced production patterns. The book provides practical examples and real-world scenarios to help you master Hudi for your data engineering needs.
+"Hudi In Action" is a comprehensive guide to [Apache Hudi](https://hudi.apache.org/), covering everything from basic concepts to advanced production patterns. The book provides practical examples and real-world scenarios to help you master Hudi for your data engineering needs.
 
 ## 🗂️ Repository Structure
 
@@ -63,4 +63,3 @@ For questions about the book or code examples:
 ---
 
 Happy learning with Apache Hudi! 🎉
-

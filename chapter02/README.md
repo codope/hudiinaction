@@ -59,7 +59,6 @@ The tutorial demonstrates these essential Hudi configurations:
 
 - **Record Key**: `trip_id` (unique identifier for each record)
 - **Partition Field**: `vendor_id` (distributes data across partitions)
-- **Precombine Field**: `pickup_datetime` (resolves duplicates - latest wins)
 - **Table Type**: Copy-on-Write (CoW) for optimal read performance
 - **Hive Style Partitioning**: Enabled for compatibility
 
@@ -72,7 +71,6 @@ The tutorial demonstrates these essential Hudi configurations:
 
 ### Section 2: Upsert Operations
 - Update existing records (fare amount increase)
-- Modify timestamps (pickup time adjustment)
 - Verify changes with snapshot queries
 
 ### Section 3: Delete Operations

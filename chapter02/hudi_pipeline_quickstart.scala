@@ -11,12 +11,6 @@
  * Format: Tab-separated CSV with headers
  */
 
-// Required imports for Spark SQL operations and Hudi functionality
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.unix_timestamp
-import org.apache.spark.sql.types.DoubleType
-import spark.implicits._
-
 // ============================================================================
 // CONFIGURATION - Update these paths for your environment
 // ============================================================================
@@ -55,14 +49,12 @@ val df = spark.read.format("csv").
  * Key Hudi options explained:
  * - recordkey.field: Unique identifier for each record (trip_id)
  * - partitionpath.field: Field used for partitioning (vendor_id)
- * - precombine.field: Field used to resolve duplicates (pickup_datetime - latest wins)
  * - hive_style_partitioning: Creates Hive-compatible partition structure
  * - table.name: Logical name for the Hudi table
  */
 df.write.format("hudi")
   .option("hoodie.datasource.write.recordkey.field",     "trip_id")
   .option("hoodie.datasource.write.partitionpath.field", "vendor_id")
-  .option("hoodie.datasource.write.precombine.field",    "pickup_datetime")
   .option("hoodie.datasource.write.hive_style_partitioning", "true")
   .option("hoodie.table.name",                     "nyc_taxi_trips")
   .mode("Overwrite")  // Initial table creation
@@ -90,16 +82,14 @@ snapshotDf.select("trip_id", "vendor_id", "pickup_datetime", "fare_amount").filt
 /**
  * Demonstrate Upsert (Update + Insert) Operation
  * 
- * We'll update an existing record by:
- * 1. Increasing the fare amount by 20% (multiply by 1.2)
- * 2. Adding 1 hour (3600 seconds) to the pickup time
+ * We'll update an existing record by increasing 
+ * the fare amount by 20% (multiply by 1.2)
  * 
  * Upserts are key to Hudi's functionality - they allow you to update existing
  * records or insert new ones in a single operation
  */
 val toUpsert = df.filter($"trip_id" === "1207977523").
-  withColumn("fare_amount", $"fare_amount".cast(DoubleType) * 1.2).
-  withColumn("pickup_datetime",   from_unixtime(unix_timestamp($"pickup_datetime") + 3600))
+  withColumn("fare_amount", $"fare_amount".cast("double") * 1.2)
 
 /**
  * Perform the upsert operation
@@ -260,7 +250,7 @@ incrDf.select("trip_id", "vendor_id", "pickup_datetime", "fare_amount").show(fal
  */
 val ttDf = spark.read.format("hudi").
   option("as.of.instant", upsertCommit).   // Query table state at this specific commit
-  load("/tmp/trips_table")
+  load(basePath)
 ttDf.count()                // Expected: 1000660 (back to row count before delete operation)
 
 // Verify that a record deleted later still exists at this point in time
@@ -289,7 +279,6 @@ val morBasePath = "/tmp/trips_table_mor"
 df.write.format("hudi").
   option("hoodie.datasource.write.recordkey.field",     "trip_id").
   option("hoodie.datasource.write.partitionpath.field", "vendor_id").
-  option("hoodie.datasource.write.precombine.field",    "pickup_datetime").
   option("hoodie.datasource.write.hive_style_partitioning", "true").
   // KEY DIFFERENCE: Set table type to MERGE_ON_READ
   option("hoodie.datasource.write.table.type",     "MERGE_ON_READ").
@@ -353,6 +342,16 @@ toUpsert.write.format("hudi")
   .mode("Append")
   .save(morBasePath)
 
+// After compaction, both snapshot and read-optimized query should give same result
+val snapshotDf = spark.read.format("hudi").load(morBasePath)
+snapshotDf.count() // Expected: 992760 rows (includes all changes)
+
+// Read-optimized query on MoR - only reads base files (faster but incomplete)
+val roDf = spark.read.format("hudi").
+  option("hoodie.datasource.query.type", "read_optimized").
+  load(morBasePath)
+roDf.count() // Expected: 992760 rows (includes all changes)
+
 /**
  * Clustering Operation
  * 
@@ -384,6 +383,7 @@ df.limit(0).write.format("hudi")  // Empty DataFrame to trigger clustering only
  * 
  * The "commits.retained" setting determines how many previous versions to keep.
  * Setting it to "1" means only the current version is retained (aggressive cleaning).
+ * After the cleaning completes, we should only see one file version in each partition.
  */
 df.limit(0).write.format("hudi")  // Empty DataFrame to trigger cleaning only
   .option("hoodie.datasource.write.operation",    "upsert")
