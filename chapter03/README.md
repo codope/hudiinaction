@@ -1,4 +1,4 @@
-# Chapter 2: Hudi tutorial on various write operations
+# Chapter 3: Hudi tutorial on various write operations
 
 This chapter covers various write operations with Apache Hudi through hands-on examples using the NYC Taxi dataset.
 
@@ -49,9 +49,8 @@ spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
 ```
 
 ### 4. Run the Tutorial
-```scala
-:load hudi_ingestion_tutorial.scala
-```
+
+Execute each write operation from hudi_ingestion_tutorial interactively by inspecting the output after each operation.
 
 ## 🔧 Key Configuration
 
@@ -69,22 +68,25 @@ The tutorial demonstrates these essential Hudi configurations:
 - Bulk import entire data into Hudi table
 - Configure essential Hudi options
 
-### Section 2: Ingesting Immutable data via Insert operation
+### Section 2: Data Loading with bulk_insert with repartitioning strategy.
+- Employing sort modes with bulk insert operation. 
+
+### Section 3: Ingesting Immutable data via Insert operation
 - Ingest immutable data via insert operation to auto manage small files
 
-### Section 3: Upsert Operations
+### Section 4: Upsert Operations
 - Execute upsert operation with Hudi to ingest both inserts and updates.
 
-### Section 3: Delete Operation
+### Section 5: Delete Operation
 - Execute delete operation with Hudi to delete some data.
 
-### Section 3: Insert_Overwrite_Table Operations
+### Section 6: Insert_Overwrite_Table Operations
 - Execute insert_overwrite_table operation with Hudi to overwrite entire table with new data.
 
-### Section 3: Insert_Overwrite Operations
-- Execute insert_Overwrite operation with Hudi to overwrite matching partitions.
+### Section 7: Insert_Overwrite Operations
+- Execute insert_overwrite operation with Hudi to overwrite matching partitions.
 
-### Section 3: Delete_Partition Operations
+### Section 8: Delete_Partition Operations
 - Execute delete_partition operation with Hudi to delete entire partitions.
 
 ## 🎯 Expected Outcomes
@@ -100,7 +102,7 @@ After completing this chapter, you'll have:
 
 ## 📁 Files in This Chapter
 
-- `hudi_ingstion_tutorial.scala` - Complete tutorial script with detailed comments
+- `hudi_write_operation_tutorial.scala` - Complete tutorial script with detailed comments
 - `trips_0.gz` - NYC Taxi dataset sample (compressed)
 - `README.md` - This chapter guide
 
