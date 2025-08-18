@@ -1,0 +1,49 @@
+/**
+ * Apache Hudi tutorial on Hoodie Streamer
+ *
+ * This script has spark submit command to run a continuously running spark application that can consume
+ * data from a DFS input directory with parquet data and ingest into Hudi table.
+ *
+ * Dataset: New York Taxi dataset with some modifications
+ * Format: Parquet
+ */
+
+// ============================================================================
+// CONFIGURATION - Update these paths for your environment
+// ============================================================================
+
+// The dataset for this chapter is New York Taxi dataset with some modifications. We added a new column named "date_col"
+// to assist with partitioning.
+// All data and files required are located at `chapter03/*`
+// Input data is located at `chapter03/streamer_input/*`
+// Property file to be fed into script below is present at `chapter03/streamer_configs/input.props`
+// Schema file to be fed into script below is present at `chapter03/streamer_schema/ny.avsc'
+// For spark-submit command, the application jar has to be locally available and cannot be referenced from maven central.
+// Jars required are hudi spark 3.5 bundle and hudi utilities slim bundle.
+// Along these, lets download the utilities slim bundle jars.
+
+// wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-slim-bundle_2.12/1.0.2/hudi-utilities-slim-bundle_2.12-1.0.2.jar $PATH_TO_BUNDLES
+// Fix /tmp/ location below with the right values for input data, property file location and the schema file location.
+// All these will be present in `chapter03/`
+
+// ============================================================================
+// SECTION 1: SPARK SUBMIT COMMAND TO RUN CONTINUOUS MODE HOODIE STREAMER
+// ============================================================================
+
+./bin/spark-submit --driver-memory 4g --executor-memory 4g \
+--packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
+--class org.apache.hudi.utilities.streamer.HoodieStreamer \
+$PATH_TO_BUNDLES/hudi-utilities-slim-bundle_2.12-1.0.2.jar \
+--props /tmp/input.props \
+--schemaprovider-class org.apache.hudi.utilities.schema.FilebasedSchemaProvider \
+--source-class org.apache.hudi.utilities.sources.ParquetDFSSource \
+--source-ordering-field date_col \
+--table-type MERGE_ON_READ \
+--target-base-path file:\/\/\/tmp/hudi-deltastreamer-ny/ \
+--target-table ny_hudi_tbl \
+--op UPSERT \
+--continuous \
+--source-limit 30000000 \
+--min-sync-interval-seconds 30 \
+--hoodie-conf "hoodie.deltastreamer.source.dfs.root=/tmp/input_data/" \
+--hoodie-conf "hoodie.deltastreamer.schemaprovider.source.schema.file=file:/tmp/streamer_inputs/ny.avsc"
