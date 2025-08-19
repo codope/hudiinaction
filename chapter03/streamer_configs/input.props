@@ -1,8 +1,0 @@
-
-hoodie.datasource.write.recordkey.field=VendorID
-hoodie.datasource.write.partitionpath.field=date_col
-hoodie.datasource.write.precombine.field=date_col
-
-#hoodie.deltastreamer.schemaprovider.target.schema.file=file:/Users/nsb/Documents/personal/projects/test_env/deltastreamer/async_compaction/ny.avsc
-#hoodie.deltastreamer.schemaprovider.source.schema.file=file:/Users/nsb/Documents/personal/projects/test_env/deltastreamer/async_compaction/ny.avsc
-
