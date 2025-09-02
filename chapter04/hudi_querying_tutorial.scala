@@ -1,7 +1,7 @@
 /**
- * Apache Hudi tutorial .....
+ * Apache Hudi tutorial on querying Hudi tables.
  * 
- * This script demonstrates different ... to be fixed.
+ * This script demonstrates different ways ot read a Hudi table using spark.
  * 
  * Dataset: store_sales dataset from tpc-ds benchmarking 1GB dataset.
  * Format: parquet
@@ -10,6 +10,20 @@
 // ============================================================================
 // CONFIGURATION - Update these paths for your environment
 // ============================================================================
+
+// input data is stored in chapter04/input_data/ in hudiinaction github repo. Feel free to replace below line or
+// copy the contents of chapter04/input_data/ to /tmp/input_data/
+val inputPath = "/tmp/input_data/"
+
+// Launch spark-shell
+./bin/spark-shell --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
+  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+  --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
+  --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+  --conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
+
+// Required imports
+import org.apache.spark.sql.SaveMode._
 
 // The dataset for this chapter is store sales dataset from tpc-ds benchmark which is located at chapter04/input_data.
 // Please change to the path where the source data is saved
@@ -39,132 +53,75 @@ df.write.format("hudi").
   save(basePath)
 
 // ============================================================================
-// SECTION 2: Querying tables pre clustering
+// SECTION 2: Querying tables via spark datasource.
 // ============================================================================
 
 spark.read.format(“hudi”).load(basePath).registerTempTable(“hudi_tbl”)
-spark.sql("select * from hudi_tbl where ss_store_sk = 7").show(100, false)
+spark.sql("select count(*) from hudi_tbl where ss_store_sk = 7").show(false)
 
-//+-------------------+-------------------------+------------------+----------------------+-------------------------------------------------------------------------+---------------+---------------+----------+--------------+-----------+-----------+----------+-----------+-----------+----------------+-----------+-----------------+-------------+--------------+-------------------+------------------+---------------------+-----------------+----------+-------------+-----------+-------------------+-------------+
-//|_hoodie_commit_time|_hoodie_commit_seqno     |_hoodie_record_key|_hoodie_partition_path|_hoodie_file_name                                                        |ss_sold_date_sk|ss_sold_time_sk|ss_item_sk|ss_customer_sk|ss_cdemo_sk|ss_hdemo_sk|ss_addr_sk|ss_store_sk|ss_promo_sk|ss_ticket_number|ss_quantity|ss_wholesale_cost|ss_list_price|ss_sales_price|ss_ext_discount_amt|ss_ext_sales_price|ss_ext_wholesale_cost|ss_ext_list_price|ss_ext_tax|ss_coupon_amt|ss_net_paid|ss_net_paid_inc_tax|ss_net_profit|
-//+-------------------+-------------------------+------------------+----------------------+-------------------------------------------------------------------------+---------------+---------------+----------+--------------+-----------+-----------+----------+-----------+-----------+----------------+-----------+-----------------+-------------+--------------+-------------------+------------------+---------------------+-----------------+----------+-------------+-----------+-------------------+-------------+
-//|20250822082845301  |20250822082845301_0_138  |13814             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |NULL           |13814     |47971         |NULL       |6773       |30574     |7          |286        |34              |20         |22.82            |NULL         |6.74          |NULL               |134.80            |NULL                 |NULL             |NULL      |NULL         |NULL       |NULL               |NULL         |
-//  |20250822082845301  |20250822082845301_0_301  |14059             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |67194          |14059     |NULL          |743793     |33         |NULL      |7          |296        |92              |36         |NULL             |136.44       |NULL          |0.00               |2750.40           |2493.36              |4911.84          |55.00     |0.00         |2750.40    |2805.40            |257.04       |
-//  |20250822082845301  |20250822082845301_0_482  |5059              |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |NULL           |5059      |83850         |NULL       |1095       |NULL      |7          |142        |138             |82         |85.30            |NULL         |NULL          |1283.13            |1336.60           |6994.60              |10281.98         |NULL      |1283.13      |NULL       |57.74              |NULL         |
-//  |20250822082845301  |20250822082845301_0_490  |11177             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |49689          |11177     |11738         |NULL       |NULL       |NULL      |7          |NULL       |140             |15         |34.78            |50.08        |NULL          |NULL               |435.60            |NULL                 |NULL             |NULL      |NULL         |NULL       |NULL               |-86.10       |
-// ...
-// ...
-
-// After you run the query, open Spark UI → SQL and click the query to see the DAG visualization for query execution stats.
-
-// ============================================================================
-// SECTION 3: Clustering the table by sorting on query predicated column
-// ============================================================================
-
-/**
- * Execute a phoney upsert just to trigger clustering.
- *
- * Key Hudi options explained:
- * - hoodie.clustering.inline: Enables clustering.
- * - hoodie.clustering.inline.max.commits: defines the frequency of clustering.
- * - hoodie.clustering.plan.strategy.target.file.max.bytes: defines the max file size with clustering. We are setting
- * it to 10Mb.
- * - hoodie.clustering.plan.strategy.small.file.limit: defines the small file candidate limit. Any file less than 120Mb
- * will be considered as input candidates for clustering.
- * - hoodie.clustering.plan.strategy.sort.columns: defines the columns to be sorted with clustering.
- */
-df.limit(1).write.format("hudi").
-  option("hoodie.datasource.write.recordkey.field","ss_item_sk").
-  option("hoodie.table.name","hudi_demo_tbl").
-  option("hoodie.datasource.write.operation","upsert").
-  option("hoodie.clustering.inline","true").
-  option("hoodie.clustering.inline.max.commits","1").
-  option("hoodie.clustering.plan.strategy.target.file.max.bytes","10485760").
-  option("hoodie.clustering.plan.strategy.small.file.limit", "125829120").
-  option("hoodie.clustering.plan.strategy.sort.columns","ss_store_sk").
-  mode(Append).
-  save(basePath)
-
-// ============================================================================
-// SECTION 4: Querying tables pre clustering
-// ============================================================================
-
-spark.read.format(“hudi”).load(basePath).registerTempTable(“hudi_tbl_post_clustering”)
-spark.sql("select * from hudi_tbl_post_clustering where ss_store_sk = 7").show(100, false)
-
-//+-------------------+-------------------------+------------------+----------------------+-------------------------------------------------------------------------+---------------+---------------+----------+--------------+-----------+-----------+----------+-----------+-----------+----------------+-----------+-----------------+-------------+--------------+-------------------+------------------+---------------------+-----------------+----------+-------------+-----------+-------------------+-------------+
-//|_hoodie_commit_time|_hoodie_commit_seqno     |_hoodie_record_key|_hoodie_partition_path|_hoodie_file_name                                                        |ss_sold_date_sk|ss_sold_time_sk|ss_item_sk|ss_customer_sk|ss_cdemo_sk|ss_hdemo_sk|ss_addr_sk|ss_store_sk|ss_promo_sk|ss_ticket_number|ss_quantity|ss_wholesale_cost|ss_list_price|ss_sales_price|ss_ext_discount_amt|ss_ext_sales_price|ss_ext_wholesale_cost|ss_ext_list_price|ss_ext_tax|ss_coupon_amt|ss_net_paid|ss_net_paid_inc_tax|ss_net_profit|
-//+-------------------+-------------------------+------------------+----------------------+-------------------------------------------------------------------------+---------------+---------------+----------+--------------+-----------+-----------+----------+-----------+-----------+----------------+-----------+-----------------+-------------+--------------+-------------------+------------------+---------------------+-----------------+----------+-------------+-----------+-------------------+-------------+
-//|20250822082845301  |20250822082845301_0_138  |13814             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |NULL           |13814     |47971         |NULL       |6773       |30574     |7          |286        |34              |20         |22.82            |NULL         |6.74          |NULL               |134.80            |NULL                 |NULL             |NULL      |NULL         |NULL       |NULL               |NULL         |
-//  |20250822082845301  |20250822082845301_0_301  |14059             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |67194          |14059     |NULL          |743793     |33         |NULL      |7          |296        |92              |36         |NULL             |136.44       |NULL          |0.00               |2750.40           |2493.36              |4911.84          |55.00     |0.00         |2750.40    |2805.40            |257.04       |
-//  |20250822082845301  |20250822082845301_0_482  |5059              |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |NULL           |5059      |83850         |NULL       |1095       |NULL      |7          |142        |138             |82         |85.30            |NULL         |NULL          |1283.13            |1336.60           |6994.60              |10281.98         |NULL      |1283.13      |NULL       |57.74              |NULL         |
-//  |20250822082845301  |20250822082845301_0_490  |11177             |                      |5c10512e-e340-4ee4-b539-0e60d71ed540-0_0-3758-0_20250822082845301.parquet|NULL           |49689          |11177     |11738         |NULL       |NULL       |NULL      |7          |NULL       |140             |15         |34.78            |50.08        |NULL          |NULL               |435.60            |NULL                 |NULL             |NULL      |NULL         |NULL       |NULL               |-86.10       |
-// ...
-// ...
-
-// After you run the query, open Spark UI → SQL and click the query to see the DAG visualization for query execution stats.
-// You can find the difference in number of files read before and after clustering (58 -> 2) and latency difference as well.
-
-// Lets move on to explore how file level data skipping with Hudi.
-
-// ============================================================================
-// SECTION 5: Creating a new Hudi table
-// ============================================================================
-
-/**
- * Load the store_sales dataset from the input (located at chapter04/input_data)
- */
-val df = spark.read.format("parquet").load(inputPath)
-
-// Please change to the path where the Hudi table will be created
-val basePath  = "/tmp/hudi_data_skipping_demo_tbl"
-
-/**
- * Create a new table with bulk insert operation. Since the previous table is already clustering, we are re-creating a
- * new table again.
- * Note: We are explicitly setting shuffle parallelism to 50 so that 50 data files will be created.
- */
-df.write.format("hudi").
-  option("hoodie.datasource.write.recordkey.field","ss_item_sk").
-  option("hoodie.table.name","hudi_demo_tbl").
-  option("hoodie.datasource.write.operation","bulk_insert").
-  option("hoodie.bulkinsert.shuffle.parallelism","50").
-  save(basePath)
-
-// ============================================================================
-// SECTION 6: Querying tables without file level data skipping.
-// ============================================================================
-
-spark.read.format(“hudi”).option(“hoodie.enable.data.skipping”,”false”).load(“/tmp/hudi_data_skipping_demo_tbl”).registerTempTable(“data_skipping_demo_tbl”)
-spark.sql("select count(*) from data_skipping_demo_tbl where ss_net_profit > 9000").show(false)
-
+Output:
 //  +--------+
 //  |count(1)|
 //  +--------+
-//  |11      |
+//  |458194  |
 //  +--------+
 
-// After you run the query, open Spark UI → SQL and click the query to see the DAG visualization for query execution stats.
+// After you run the query, open Spark UI → SQL tab and click the query to see the DAG visualization for query execution stats.
 
 // ============================================================================
-// SECTION 7: Querying tables with file level data skipping.
+// SECTION 3: Querying hudi table via Spark SQL
 // ============================================================================
 
-spark.read.format(“hudi”).load(“/tmp/hudi_data_skipping_demo_tbl”).registerTempTable(“data_skipping_demo_tbl”)
-spark.sql("select count(*) from data_skipping_demo_tbl where ss_net_profit > 9000").show(false)
+// lets launch spark-sql session
 
-//  +--------+
-//  |count(1)|
-//  +--------+
-//  |11      |
-//  +--------+
+./bin/spark-sql --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
+--conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+--conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+--conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
+--conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
 
-// After you run the query, open Spark UI → SQL and click the query to see the DAG visualization for query execution stats.
-// You can find the difference in number of files read before and after clustering (58 -> 10) and latency difference as well.
+// Lets drop the table if exists already
+DROP TABLE IF EXISTS hudi_tbl;
 
+// lets create an external table mapping to the hudi table location
+CREATE TABLE hudi_tbl USING hudi LOCATION '/tmp/hudi_demo_tbl';
 
+// Now, we are ready to query the hudi table via Spark SQL
+SELECT count(*) FROM hudi_tbl where ss_store_sk = 7;
 
+Output:
+// 458194
+// Time taken: 7.613 seconds, Fetched 1 row(s)
 
+// ============================================================================
+// SECTION 3: Querying hudi table via Spark Structured Streaming
+// ============================================================================
 
+// Launch spark-shell
+./bin/spark-shell --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
+  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+--conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
+--conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+--conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
 
+// lets execute a streaming query to consume data from our hudi table using spark structured streaming
+
+import org.apache.spark.sql.streaming.Trigger
+import java.time.LocalDateTime
+val sourceBasePath = "/tmp/hudi_demo_tbl"
+val df = spark.readStream.format("hudi").load(sourceBasePath)
+val query = df.writeStream.foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) => {
+  batchDF.persist()
+  println(LocalDateTime.now() + " start consuming batch " + batchId)
+  println("Total record count " + batchDF.count())
+  println(LocalDateTime.now() + " finish")
+}
+}.option("checkpointLocation", "/tmp/hudi_streaming_hudi/checkpoint/").
+  trigger(Trigger.ProcessingTime("2 minutes")).start()
+
+Output:
+// 25/09/01 18:50:41 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+// 2025-09-01T18:50:41.498 start consuming batch 0
+// Total record count 2880404
+// 2025-09-01T18:51:01.645 finish
 
