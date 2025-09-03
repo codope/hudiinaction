@@ -1,43 +1,34 @@
 # Chapter 3: Hudi tutorial on various querying capabilities with Hudi tables
 
-To be fixed: 
-This chapter covers various write operations with Apache Hudi through hands-on examples using the NYC Taxi dataset.
+This chapter covers various querying capabilities with Hudi table and we will be using TPC-DS store_sales dataset. 
 
 ## 🚀 What You'll Learn
 
 This chapter demonstrates:
 
-- **Bulk data loading**: Initial bulk loading of data
-- **Ingesting Immutable data**: Ingesting immutable data into Hudi tables
-- **Upsert operation**: Performing upserts on Hudi tables
-- **Deleting data**: Deleting data with Hudi
-- **Insert overwrite operations**: Performing Insert_Overwrite operations for overwriting entire partitions or table
-- **Deleting partitions**: Deleting entire partitions
+- **Creating a Hudi table**: Initial loading of data
+- **Querying Hudi table using spark datasource**: Reading Hudi table from datasource
+- **Querying Hudi table using spark SQL**: Reading Hudi table from spark SQL
+- **Querying Hudi table using spark structured streaming**: Reading a Hudi table using spark streaming.
 
 ## 📊 Sample Dataset
 
-This chapter uses a sample of the NYC Taxi dataset containing approximately 1 million trip records. The data includes:
+This chapter uses a sample of the store-sales dataset from tpc-ds benchmarking containing approximately 2.8M records. The data includes:
 
-- **Trip ID** (unique identifier)
-- **Vendor ID** (for partitioning)
-- **Pickup/dropoff timestamps**
-- **Trip distance and duration**
-- **Fare amounts and payment types**
-- **Geographic coordinates**
+- **ss_item_sk** (unique identifier)
+- **Item information** 
+- **Customer information**
+- **Address related info**
+- **Price related stats**
+- **Profit related stats**
 
 ## 🛠️ Setup Instructions
 
-### 1. Extract Sample Data from chapter2 location
-```bash
-cd chapter02
-gunzip trips_0.gz
-```
-
-### 2. Update Configuration
+### 1. Update Configuration
 Edit the Scala file to update paths according to your environment:
 ```scala
-// Update these paths in hudi_pipeline_quickstart.scala
-val inputPath = "/path/to/hudiinaction/chapter02/trips_0"
+// Update these paths in hudi_querying_tutorial.scala
+val inputPath = "/path/to/hudiinaction/chapter04/input_data/"
 val basePath  = "/tmp/trips_table"  // Or your preferred location
 ```
 
@@ -51,69 +42,39 @@ spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
 
 ### 4. Run the Tutorial
 
-Execute each write operation from hudi_ingestion_tutorial interactively by inspecting the output after each operation.
-
-## 🔧 Key Configuration
-
-The tutorial demonstrates these essential Hudi configurations:
-
-- **Record Key**: `trip_id` (unique identifier for each record)
-- **Partition Field**: `vendor_id` (distributes data across partitions)
-- **Table Type**: Copy-on-Write (CoW) for optimal read performance
-- **Hive Style Partitioning**: Enabled for compatibility
+Execute each read capability from hudi_querying_tutorial interactively by inspecting the output after each operation.
 
 ## 📝 Tutorial Steps
 
 ### Section 1: Data Loading with bulk_insert
-- Load NYC taxi data from CSV
+- Load store_sales dataset from input_data
 - Bulk import entire data into Hudi table
-- Configure essential Hudi options
 
-### Section 2: Data Loading with bulk_insert with repartitioning strategy.
-- Employing sort modes with bulk insert operation. 
+### Section 2: Querying tables via spark datasource
+- Query the hudi table using spark datasource. 
 
-### Section 3: Ingesting Immutable data via Insert operation
-- Ingest immutable data via insert operation to auto manage small files
+### Section 3: Querying hudi table via Spark SQL
+- Create external table from spark SQL
+- Query the hudi table from spark SQL
 
-### Section 4: Upsert Operations
-- Execute upsert operation with Hudi to ingest both inserts and updates.
-
-### Section 5: Delete Operation
-- Execute delete operation with Hudi to delete some data.
-
-### Section 6: Insert_Overwrite_Table Operations
-- Execute insert_overwrite_table operation with Hudi to overwrite entire table with new data.
-
-### Section 7: Insert_Overwrite Operations
-- Execute insert_overwrite operation with Hudi to overwrite matching partitions.
-
-### Section 8: Delete_Partition Operations
-- Execute delete_partition operation with Hudi to delete entire partitions.
+### Section 4: Querying hudi table via Spark Structured Streaming
+- Read the hudi table using dstream and process each micro batches to print some stats.
 
 ## 🎯 Expected Outcomes
 
 After completing this chapter, you'll have:
 
-- A functioning Hudi table with ~1M records
-- Experience how to ingest immutable data into Hudi
-- Experience how to ingest both inserts and updates in the same batch 
+- A functioning Hudi table with store_sales dataset. 
+- Experience how to query the table via spark datasource. 
+- Experience how to querying an external table via spark SQL.
 - Explore how to delete data with Hudi
-- Learn how to perform insert_overwrite operations with Hudi 
-- Learn how to delete entire partitions with Hudi
+- Learn how to do a streaming read of a given hudi table in micro batches.
 
 ## 📁 Files in This Chapter
 
-- `hudi_write_operation_tutorial.scala` - Complete tutorial script with detailed comments
-- `trips_0.gz` - NYC Taxi dataset sample (compressed)
+- `hudi_querying_tutorial.scala` - Complete tutorial script with detailed comments
+- `input_data` - data directory containing input data to play with.
 - `README.md` - This chapter guide
-
-## 💡 Tips for Success
-
-1. **Memory Settings**: Ensure Spark has at least 4GB RAM allocated
-2. **Path Configuration**: Use absolute paths to avoid confusion
-3. **Package Versions**: Match Hudi bundle version with your Spark version
-4. **Data Location**: Extract the dataset before running the tutorial
-5. **Iterative Learning**: Run sections incrementally to understand each concept
 
 ## 📚 Further Reading
 

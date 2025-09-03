@@ -94,7 +94,7 @@ Output:
 // Time taken: 7.613 seconds, Fetched 1 row(s)
 
 // ============================================================================
-// SECTION 3: Querying hudi table via Spark Structured Streaming
+// SECTION 4: Querying hudi table via Spark Structured Streaming
 // ============================================================================
 
 // Launch spark-shell
