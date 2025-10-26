@@ -1,7 +1,7 @@
 /**
  * Apache Hudi tutorial on querying Hudi tables.
  * 
- * This script demonstrates different ways ot read a Hudi table using spark.
+ * This script demonstrates different ways to read a Hudi table using spark.
  * 
  * Dataset: store_sales dataset from tpc-ds benchmarking 1GB dataset.
  * Format: parquet
@@ -124,4 +124,3 @@ Output:
 // 2025-09-01T18:50:41.498 start consuming batch 0
 // Total record count 2880404
 // 2025-09-01T18:51:01.645 finish
-
