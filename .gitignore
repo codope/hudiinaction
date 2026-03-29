@@ -1,0 +1,25 @@
+# SBT / Scala
+target/
+project/target/
+project/project/
+
+# IntelliJ / IDEs
+.idea/
+*.iml
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Build artifacts
+*.jar
+*.class
+
+# Spark local dirs (optional but useful)
+spark-warehouse/
+metastore_db/
+
+# Hudi local data (optional if using /tmp)
+tmp/
