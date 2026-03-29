@@ -1,0 +1,73 @@
+{
+  "type": "record",
+  "name": "PaymentEvent",
+  "namespace": "com.hudiinaction.chapter06",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "event_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "ingest_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "order_id",
+      "type": "string"
+    },
+    {
+      "name": "order_line_id",
+      "type": "string"
+    },
+    {
+      "name": "customer_id",
+      "type": "string"
+    },
+    {
+      "name": "vendor_id",
+      "type": "string"
+    },
+    {
+      "name": "currency",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "payment_method",
+      "type": "string"
+    },
+    {
+      "name": "country",
+      "type": "string"
+    },
+    {
+      "name": "attributes",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "dt",
+      "type": "string"
+    }
+  ]
+}
