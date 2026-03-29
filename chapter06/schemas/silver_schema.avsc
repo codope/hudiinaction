@@ -1,0 +1,92 @@
+{
+  "type": "record",
+  "name": "VendorPayout",
+  "namespace": "com.hudiinaction.chapter06",
+  "fields": [
+    {
+      "name": "vendor_id",
+      "type": "string"
+    },
+    {
+      "name": "payout_date",
+      "type": "string"
+    },
+    {
+      "name": "order_id",
+      "type": "string"
+    },
+    {
+      "name": "order_line_id",
+      "type": "string"
+    },
+    {
+      "name": "customer_id",
+      "type": "string"
+    },
+    {
+      "name": "country",
+      "type": "string"
+    },
+    {
+      "name": "currency",
+      "type": "string"
+    },
+    {
+      "name": "gross_amount",
+      "type": "double"
+    },
+    {
+      "name": "refund_amount",
+      "type": "double"
+    },
+    {
+      "name": "fee_amount",
+      "type": "double"
+    },
+    {
+      "name": "chargeback_amount",
+      "type": "double"
+    },
+    {
+      "name": "net_payout_amount",
+      "type": "double"
+    },
+    {
+      "name": "first_event_ts",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-micros"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "last_event_ts",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-micros"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "last_updated_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "last_event_type",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    }
+  ]
+}
