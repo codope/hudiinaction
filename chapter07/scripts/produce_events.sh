@@ -10,6 +10,6 @@ echo "Producing sample transaction events to Kafka topic payments.transactions..
 while IFS= read -r line; do
   echo "$line"
 done < "$DATA_FILE" | docker compose -f "$CH_DIR/docker-compose.yml" exec -T kafka \
-  kafka-console-producer --bootstrap-server localhost:9092 --topic payments.transactions
+  kafka-console-producer --bootstrap-server kafka:29092 --topic payments.transactions
 
 echo "Done. $(wc -l < "$DATA_FILE" | tr -d ' ') events produced."

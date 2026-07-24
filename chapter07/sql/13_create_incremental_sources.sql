@@ -7,6 +7,7 @@ CREATE TABLE bronze_transactions_incremental (
     amount          DECIMAL(18, 2),
     currency        STRING,
     status          STRING,
+    record_version  BIGINT,
     event_ts        TIMESTAMP(3),
     processing_ts   TIMESTAMP(3),
     dt              STRING

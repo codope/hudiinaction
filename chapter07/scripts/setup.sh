@@ -13,7 +13,7 @@ docker compose up -d --build
 echo "[2/3] Waiting for services to be ready..."
 sleep 5
 
-until docker compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list &>/dev/null; do
+until docker compose exec -T kafka kafka-topics --bootstrap-server kafka:29092 --list &>/dev/null; do
   echo "  Waiting for Kafka..."
   sleep 3
 done
@@ -32,7 +32,7 @@ done
 echo "  Flink JobManager is ready."
 
 echo "[3/3] Creating Kafka topic and producing sample events..."
-docker compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 \
+docker compose exec -T kafka kafka-topics --bootstrap-server kafka:29092 \
   --create --topic payments.transactions --partitions 4 --replication-factor 1 \
   --if-not-exists
 
