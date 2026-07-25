@@ -127,7 +127,7 @@ val instants = meta.getCommitsTimeline.filterCompletedInstants.
   getInstants.iterator().asScala.toList.sortBy(_.requestedTime())
 
 instants.foreach { i =>
-  println(s"  requested=${i.requestedTime()}  completed=${i.getCompletionTime}  action=${i.getAction}")
+  println(s"  requested=${i.requestedTime()}  completed=${i.getCompletionTime()}  action=${i.getAction}")
 }
 // Expected: 3 instants — initial commit, upsert commit, delete commit
 
@@ -152,8 +152,8 @@ roDf.count()
 //   begin is exclusive (>), end is inclusive (<=).
 val incrDf = spark.read.format("hudi").
   option("hoodie.datasource.query.type", "incremental").
-  option("hoodie.datasource.read.begin.instanttime", firstCommit.getCompletionTime).
-  option("hoodie.datasource.read.end.instanttime",   deleteCommit.getCompletionTime).
+  option("hoodie.datasource.read.begin.instanttime", firstCommit.getCompletionTime()).
+  option("hoodie.datasource.read.end.instanttime",   deleteCommit.getCompletionTime()).
   load(basePath)
 
 incrDf.select("trip_id", "vendor_id", "pickup_datetime", "fare_amount").show(false)
