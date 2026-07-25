@@ -1,0 +1,6 @@
+Copy `trips_0.gz` from the chapter02 root into this directory before building:
+
+    cp ../trips_0.gz .
+    gunzip trips_0.gz
+
+The Dockerfile COPYs everything in this directory into /home/hudi/data/ inside the container.

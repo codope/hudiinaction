@@ -1,122 +1,100 @@
-# Chapter 2: Hudi Pipeline Quickstart
+# Chapter 2: Apache Hudi Essentials and Quickstart
 
-This chapter provides a comprehensive introduction to Apache Hudi through hands-on examples using the NYC Taxi dataset.
+This chapter walks through a complete Hudi pipeline end to end — creating tables, performing
+upserts and deletes, querying data four ways, and running table maintenance — using the NYC
+Taxi dataset.
 
-## 🚀 What You'll Learn
+## Quick Start
 
-This chapter demonstrates:
+### Option A: Docker (recommended)
 
-- **Table Creation**: Setting up Copy-on-Write (CoW) tables
-- **Data Loading**: Importing data from CSV files into Hudi tables
-- **CRUD Operations**: Performing upserts and deletes on Hudi tables
-- **Query Patterns**: Snapshot queries to read the latest data
-- **Metadata Exploration**: Understanding commit timeline and table history
-- **Table Configuration**: Key Hudi options and their impact
+One command gets you a Jupyter notebook with Spark + Hudi pre-configured:
 
-## 📊 Sample Dataset
-
-This chapter uses a sample of the NYC Taxi dataset containing approximately 1 million trip records. The data includes:
-
-- **Trip ID** (unique identifier)
-- **Vendor ID** (for partitioning)
-- **Pickup/dropoff timestamps**
-- **Trip distance and duration**
-- **Fare amounts and payment types**
-- **Geographic coordinates**
-
-## 🛠️ Setup Instructions
-
-### 1. Extract Sample Data
 ```bash
-cd chapter02
-gunzip trips_0.gz
+cd chapter02/docker
+cp ../trips_0.gz data/ && gunzip data/trips_0.gz
+docker compose up
 ```
 
-### 2. Update Configuration
-Edit the Scala file to update paths according to your environment:
-```scala
-// Update these paths in hudi_pipeline_quickstart.scala
-val inputPath = "/path/to/hudiinaction/chapter02/trips_0"
-val basePath  = "/tmp/trips_table"  // Or your preferred location
-```
+Open http://localhost:8888 and run `hudi_quickstart_pyspark.ipynb`.
 
-### 3. Start Spark Shell
-```bash
-spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-            --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
-            --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
-            --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog'
-```
+### Option B: Local Spark Shell
 
-### 4. Run the Tutorial
-```scala
-:load hudi_pipeline_quickstart.scala
-```
+1. **Set environment variables:**
+   ```bash
+   export JAVA_HOME=/path/to/java-11    # JDK 11 required
+   export SPARK_HOME=/path/to/spark-3.5.6-bin-hadoop3
+   export PATH="$SPARK_HOME/bin:$PATH"
+   ```
 
-## 🔧 Key Configuration
+2. **Extract the sample data:**
+   ```bash
+   cd chapter02
+   gunzip trips_0.gz
+   ```
 
-The tutorial demonstrates these essential Hudi configurations:
+3. **Update paths** in `hudi_pipeline_quickstart.scala`:
+   ```scala
+   val inputPath = "/path/to/hudiinaction/chapter02/trips_0"
+   val basePath  = "/tmp/trips_table"
+   ```
 
-- **Record Key**: `trip_id` (unique identifier for each record)
-- **Partition Field**: `vendor_id` (distributes data across partitions)
-- **Table Type**: Copy-on-Write (CoW) for optimal read performance
-- **Hive Style Partitioning**: Enabled for compatibility
+4. **Start Spark Shell** (the script sets all required Hudi configs):
+   ```bash
+   ./run_spark_shell.sh
+   ```
+   Or run manually:
+   ```bash
+   spark-shell \
+     --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.0 \
+     --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+     --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog \
+     --conf spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension
+   ```
 
-## 📝 Tutorial Steps
+5. **Run the tutorial:**
+   ```scala
+   :load hudi_pipeline_quickstart.scala
+   ```
 
-### Section 1: Data Loading and Table Creation
-- Load NYC taxi data from CSV
-- Create your first Hudi CoW table
-- Configure essential Hudi options
+## Prerequisites
 
-### Section 2: Upsert Operations
-- Update existing records (fare amount increase)
-- Verify changes with snapshot queries
+- Java SDK: 11 (LTS). Ensure `JAVA_HOME` is set.
+- [Apache Spark 3.5.6](https://spark.apache.org/downloads.html) (pre-built with Hadoop 3.3)
+- Apache Hudi 1.2.0 (pulled automatically via `--packages`; see
+  [version compatibility](https://hudi.apache.org/docs/quick-start-guide))
+- Hardware: 8 GB RAM and 10 GB free disk recommended
+- OS: macOS, Linux, or WSL 2 on Windows
 
-### Section 3: Delete Operations
-- Remove records based on conditions
-- Perform hard deletes from the table
-- Validate deletion results
+## Sample Dataset
 
-### Section 4: Metadata Exploration
-- Access Hudi table metadata
-- Explore commit timeline
-- Understand table history
+NYC Taxi dataset sample (~1M trip records): trip IDs, vendor IDs, timestamps, distances,
+fares, and coordinates. Included as `trips_0.gz`.
 
-## 🎯 Expected Outcomes
+## What's Covered
 
-After completing this chapter, you'll have:
+| Section | Topic |
+|---------|-------|
+| 1 | Data loading and CoW table creation |
+| 2 | Upsert operations and verification |
+| 3 | Delete operations |
+| 4 | Commit timeline and metadata exploration |
+| 5 | Query types: snapshot, read-optimized, incremental, time-travel |
+| 6 | Merge-on-Read (MoR) table operations |
+| 7 | Table maintenance: compaction, clustering, cleaning |
 
-- A functioning Hudi table with ~1M records
-- Experience with upsert and delete operations
-- Understanding of Hudi's metadata structure
-- Knowledge of essential configuration options
-- Hands-on experience with Spark-Hudi integration
+## Files
 
-## 📁 Files in This Chapter
+| File | Description |
+|------|-------------|
+| `hudi_pipeline_quickstart.scala` | Complete Scala tutorial script |
+| `docker/notebooks/hudi_quickstart_pyspark.ipynb` | PySpark Jupyter notebook (same examples) |
+| `docker/` | Docker Compose setup (Spark + Hudi + Jupyter) |
+| `run_spark_shell.sh` | Convenience script to launch spark-shell with Hudi |
+| `trips_0.gz` | NYC Taxi dataset sample (compressed) |
 
-- `hudi_pipeline_quickstart.scala` - Complete tutorial script with detailed comments
-- `trips_0.gz` - NYC Taxi dataset sample (compressed)
-- `README.md` - This chapter guide
+## Troubleshooting
 
-## 💡 Tips for Success
-
-1. **Memory Settings**: Ensure Spark has at least 4GB RAM allocated
-2. **Path Configuration**: Use absolute paths to avoid confusion
-3. **Package Versions**: Match Hudi bundle version with your Spark version
-4. **Data Location**: Extract the dataset before running the tutorial
-5. **Iterative Learning**: Run sections incrementally to understand each concept
-
-## 🐛 Troubleshooting
-
-**Common Issues:**
-- **File Not Found**: Ensure trips_0.gz is extracted to the correct path
-- **Memory Errors**: Increase Spark driver memory with `--driver-memory 4g`
-- **Package Conflicts**: Use the exact Hudi bundle version for your Spark version
-- **Permission Errors**: Ensure write permissions to the basePath directory
-
-## 📚 Further Reading
-
-- [Apache Hudi Documentation](https://hudi.apache.org/)
-- [Hudi Configuration Guide](https://hudi.apache.org/docs/configurations/)
-- [Spark-Hudi Integration](https://hudi.apache.org/docs/quick-start-guide/) 
+- **File Not Found:** Ensure `trips_0.gz` is extracted before running.
+- **Memory Errors:** Increase driver memory with `--driver-memory 4g`.
+- **Package Conflicts:** Use the exact Hudi bundle version for your Spark version.

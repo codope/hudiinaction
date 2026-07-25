@@ -1,0 +1,14 @@
+services:
+  hudi-notebook:
+    build: .
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+    volumes:
+      - ./notebooks:/home/hudi/notebooks
+      - hudi-data:/tmp
+    environment:
+      - SPARK_DRIVER_MEMORY=4g
+
+volumes:
+  hudi-data:
