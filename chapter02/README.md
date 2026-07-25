@@ -20,24 +20,39 @@ Open http://localhost:8888 and run `hudi_quickstart_pyspark.ipynb`.
 
 ### Option B: Local Spark Shell
 
-1. **Extract the sample data:**
+1. **Set environment variables:**
+   ```bash
+   export JAVA_HOME=/path/to/java-11    # JDK 11 required
+   export SPARK_HOME=/path/to/spark-3.5.6-bin-hadoop3
+   export PATH="$SPARK_HOME/bin:$PATH"
+   ```
+
+2. **Extract the sample data:**
    ```bash
    cd chapter02
    gunzip trips_0.gz
    ```
 
-2. **Update paths** in `hudi_pipeline_quickstart.scala`:
+3. **Update paths** in `hudi_pipeline_quickstart.scala`:
    ```scala
    val inputPath = "/path/to/hudiinaction/chapter02/trips_0"
    val basePath  = "/tmp/trips_table"
    ```
 
-3. **Start Spark Shell:**
+4. **Start Spark Shell** (the script sets all required Hudi configs):
    ```bash
    ./run_spark_shell.sh
    ```
+   Or run manually:
+   ```bash
+   spark-shell \
+     --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.0 \
+     --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+     --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog \
+     --conf spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension
+   ```
 
-4. **Run the tutorial:**
+5. **Run the tutorial:**
    ```scala
    :load hudi_pipeline_quickstart.scala
    ```
