@@ -2,7 +2,7 @@
 # Spark Shell command with Hudi packages and optimized memory settings
 
 spark-shell \
-  --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
+  --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.0 \
   --driver-memory 8g \
   --executor-memory 8g \
   --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
