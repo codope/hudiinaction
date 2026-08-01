@@ -82,13 +82,16 @@ fares, and coordinates. Included as `trips_0.gz`.
 | 5 | Query types: snapshot, read-optimized, incremental, time-travel |
 | 6 | Merge-on-Read (MoR) table operations |
 | 7 | Table maintenance: compaction, clustering, cleaning |
+| 8 | Storing and querying unstructured data (VECTOR + BLOB) |
 
 ## Files
 
 | File | Description |
 |------|-------------|
 | `hudi_pipeline_quickstart.scala` | Complete Scala tutorial script |
-| `docker/notebooks/hudi_quickstart_pyspark.ipynb` | PySpark Jupyter notebook (same examples) |
+| `hudi_unstructured_quickstart.scala` | Unstructured data (VECTOR/BLOB) Scala script |
+| `docker/notebooks/hudi_quickstart_pyspark.ipynb` | PySpark Jupyter notebook (structured data) |
+| `docker/notebooks/hudi_unstructured_quickstart.ipynb` | PySpark Jupyter notebook (unstructured data) |
 | `docker/` | Docker Compose setup (Spark + Hudi + Jupyter) |
 | `run_spark_shell.sh` | Convenience script to launch spark-shell with Hudi |
 | `trips_0.gz` | NYC Taxi dataset sample (compressed) |
