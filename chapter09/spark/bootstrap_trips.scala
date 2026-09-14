@@ -18,7 +18,18 @@ spark.emptyDataFrame.write.format("hudi").
   option("hoodie.bootstrap.mode.selector.regex.mode", "METADATA_ONLY").
   option("hoodie.datasource.write.recordkey.field", "trip_id").
   option("hoodie.datasource.write.partitionpath.field", "trip_date").
+  // A full-record bootstrap reads the ordering field for every source row and does not
+  // guard against it being unset: SparkFullBootstrapDataProviderBase passes it straight to
+  // HoodieAvroUtils.getNestedFieldValAsString, which throws a NullPointerException. Any
+  // bootstrap that writes full records therefore needs an ordering field.
+  option("hoodie.table.ordering.fields", "updated_at").
+  // The default of 1500 is sized for a cluster; this dataset is eight rows.
+  option("hoodie.bootstrap.parallelism", "4").
   option("hoodie.datasource.write.hive_style_partitioning", "true").
+  // A bootstrap cannot build the column-stats index: SparkBootstrapCommitActionExecutor
+  // throws "col stats is not supported with bootstrap operation". The key defaults to
+  // true on Spark, so it has to be turned off here.
+  option("hoodie.metadata.index.column.stats.enable", "false").
   option("hoodie.table.name", "trips").
   mode(SaveMode.Overwrite).
   save(tablePath)
