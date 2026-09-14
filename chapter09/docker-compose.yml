@@ -1,0 +1,28 @@
+# Optional. Chapter 9's example needs nothing but Spark 3.5 and a local directory, so if
+# you already run Spark you can ignore this file and call the scripts directly. It is here
+# for readers who would rather not install Spark to try one bootstrap.
+#
+#   docker compose up -d
+#   docker compose exec spark bash
+#   export PATH="$PATH:/opt/spark/bin"
+#   ./scripts/run_all.sh
+
+services:
+  spark:
+    image: apache/spark:3.5.3
+    container_name: chapter09-spark
+    user: "0:0"
+    working_dir: /workspace/chapter09
+    environment:
+      SOURCE_PATH: /workspace/data/legacy/trips
+      TABLE_PATH: /workspace/data/hudi/trips
+      WORK_DIR: /workspace/data
+    volumes:
+      - ./:/workspace/chapter09
+      - chapter09-data:/workspace/data
+      - chapter09-ivy:/root/.ivy2
+    entrypoint: ["/bin/bash", "-lc", "sleep infinity"]
+
+volumes:
+  chapter09-data:
+  chapter09-ivy:
