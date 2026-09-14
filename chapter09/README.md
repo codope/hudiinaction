@@ -151,8 +151,10 @@ Both are real at Hudi 1.2.0, and both are set in `bootstrap_trips.scala`:
   because "fieldName" is null`. The metadata-only half succeeds first, which makes this look
   like a partial failure. The script sets `hoodie.table.ordering.fields` to `updated_at`.
 
-`hoodie.bootstrap.parallelism` is also lowered from its default of 1500, which otherwise
-schedules 1500 tasks for eight rows.
+`hoodie.bootstrap.parallelism` is also lowered from its default of 1500. For the metadata-only
+half that default is only a ceiling, so five partitions get five tasks either way, but the
+full-record half passes it through as the bulk-insert shuffle parallelism, where eight rows
+would otherwise be shuffled into 1500 partitions.
 
 ## Cleaning up
 

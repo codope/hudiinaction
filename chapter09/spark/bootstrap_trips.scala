@@ -23,7 +23,9 @@ spark.emptyDataFrame.write.format("hudi").
   // HoodieAvroUtils.getNestedFieldValAsString, which throws a NullPointerException. Any
   // bootstrap that writes full records therefore needs an ordering field.
   option("hoodie.table.ordering.fields", "updated_at").
-  // The default of 1500 is sized for a cluster; this dataset is eight rows.
+  // For the metadata-only half the default of 1500 is only a ceiling, but the full-record
+  // half passes it through as the bulk-insert shuffle parallelism, so eight rows would be
+  // shuffled into 1500 partitions.
   option("hoodie.bootstrap.parallelism", "4").
   option("hoodie.datasource.write.hive_style_partitioning", "true").
   // A bootstrap cannot build the column-stats index: SparkBootstrapCommitActionExecutor
