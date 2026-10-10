@@ -75,9 +75,7 @@ records. The script's comments show the full `show()` output for each step.
 
 ## 2. HoodieStreamer
 
-> **Status:** the configuration below matches Chapter 3 and Hudi 1.2.0. The expected results are
-> derived from the input data and the Hudi 1.2.0 source code, but they are pending an end-to-end
-> run.
+Tested end to end with Spark 3.5.6, Java 11 and Hudi 1.2.0, starting from an empty table.
 
 ### What is in the archive
 
@@ -125,27 +123,40 @@ Two things the script does that are worth knowing:
 - **Ordering field:** `--source-ordering-fields tpep_dropoff_datetime`. When two versions of a
   record share a key, the one with the later drop-off time wins; on a tie, the later write wins.
 
-### Expected results (pending verification)
+### Expected results
 
-Stop the streamer with Ctrl+C once 11 delta commits have completed. In
-`/tmp/hudi-deltastreamer-ny/.hoodie/timeline/` you should see:
+Once 11 delta commits have completed, the streamer has nothing left to read; stop it with
+Ctrl+C. The timeline in `/tmp/hudi-deltastreamer-ny/.hoodie/timeline/` from the tested run:
 
-- 11 `deltacommit` instants, one per input file (including the replay)
-- a `compaction` instant scheduled after the fifth delta commit, completing while later batches
-  are still being ingested
+| Instant | Requested | Completed | What happened |
+|---|---|---|---|
+| deltacommit 1-4 | 13:45:12 | 13:49:06 | one input file per batch, all new trips |
+| deltacommit 5 | 13:49:06 | 13:50:50 | the replayed file: every row becomes an update, written to log files |
+| compaction | 13:50:50 | 13:52:00 | scheduled right after the fifth delta commit |
+| deltacommit 6 | 13:50:53 | 13:53:09 | ingestion continues while the compaction runs |
+| deltacommit 7-10 | 13:53:09 | 13:56:28 | |
+| compaction | 13:56:28 | 13:56:29 | five delta commits after the first compaction |
+| deltacommit 11 | 13:56:28 | 13:57:31 | last input file |
+
+Times will differ on your machine; the order of events should not.
 
 Then check the data in spark-shell:
 
 ```scala
 val t = spark.read.format("hudi").load("file:///tmp/hudi-deltastreamer-ny")
 t.count()
-// expected: 7012696 (7,012,698 input rows minus the two duplicate copies; the replay adds none)
+// res: Long = 7012696
+// 7,012,698 input rows minus the two duplicate copies; the replayed file adds none.
 
 t.where("VendorID = 1 and tpep_pickup_datetime = '2019-08-20 09:16:13'").
   select("tpep_pickup_datetime", "tpep_dropoff_datetime").show()
-// expected: one row with drop-off 2019-08-20 09:41:11. This trip arrives twice, with 09:41:11
-// in the third batch and 09:40:33 in the sixth, and the ordering field keeps the later
-// drop-off time even though it was written first.
+// +--------------------+---------------------+
+// |tpep_pickup_datetime|tpep_dropoff_datetime|
+// +--------------------+---------------------+
+// | 2019-08-20 09:16:13|  2019-08-20 09:41:11|
+// +--------------------+---------------------+
+// This trip arrives twice: 09:41:11 in the third batch and 09:40:33 in the sixth. The ordering
+// field keeps the later drop-off time even though it was written first.
 ```
 
 ## Files
