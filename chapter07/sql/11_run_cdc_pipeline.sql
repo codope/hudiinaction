@@ -1,4 +1,5 @@
--- Section 7.6: Start CDC replication pipeline
+-- requires: 09_create_mysql_cdc_source.sql 10_create_hudi_merchants_sink.sql
+-- Replicating MySQL with Flink CDC: start replication
 INSERT INTO hudi_merchants
 SELECT
     merchant_id,

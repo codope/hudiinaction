@@ -1,5 +1,8 @@
--- Section 7.2: Verify ingestion landed in the Hudi table
-SELECT status, COUNT(*) AS cnt
+-- requires: 02_create_hudi_sink_flink_state.sql
+-- Streaming event ingestion: verify (batch query against the latest snapshot).
+SET 'execution.runtime-mode' = 'batch';
+SET 'sql-client.execution.result-mode' = 'tableau';
+SELECT dt, status, COUNT(*) AS cnt
 FROM hudi_transactions
-WHERE dt = '2024-06-15'
-GROUP BY status;
+GROUP BY dt, status
+ORDER BY dt, status;
