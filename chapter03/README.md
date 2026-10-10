@@ -1,121 +1,162 @@
-# Chapter 3: Hudi tutorial on various write operations
+# Chapter 3: Apache Hudi ingestion patterns and write workflows
 
-This chapter covers various write operations with Apache Hudi through hands-on examples using the NYC Taxi dataset.
+Companion code for the chapter's two hands-on examples:
 
-## 🚀 What You'll Learn
+1. **Write operations** (`hudi_write_operation_tutorial.scala`): bulk_insert with sort modes,
+   insert, upsert, delete, insert_overwrite_table, insert_overwrite, and delete_partition on the
+   NYC Taxi sample from Chapter 2.
+2. **HoodieStreamer** (`run_hudi_streamer.sh` + `hudi_streamer.tar.gz`): continuous ingestion of
+   Parquet files into a Merge-on-Read table with asynchronous compaction.
 
-This chapter demonstrates:
+## Requirements
 
-- **Bulk data loading**: Initial bulk loading of data
-- **Ingesting Immutable data**: Ingesting immutable data into Hudi tables
-- **Upsert operation**: Performing upserts on Hudi tables
-- **Deleting data**: Deleting data with Hudi
-- **Insert overwrite operations**: Performing Insert_Overwrite operations for overwriting entire partitions or table
-- **Deleting partitions**: Deleting entire partitions
+- Java 11
+- Apache Spark 3.5.x (tested with 3.5.6, pre-built for Hadoop 3)
+- Apache Hudi 1.2.0 (bundles are pulled by `--packages` or downloaded by the streamer script)
+- macOS or Linux. On Windows, run everything inside WSL2 and keep the data under the WSL2 file
+  system (for example `/tmp`), not under `/mnt/c`.
 
-## 📊 Sample Dataset
+## 1. Write operations tutorial
 
-This chapter uses a sample of the NYC Taxi dataset containing approximately 1 million trip records. The data includes:
+### Prepare the data
 
-- **Trip ID** (unique identifier)
-- **Vendor ID** (for partitioning)
-- **Pickup/dropoff timestamps**
-- **Trip distance and duration**
-- **Fare amounts and payment types**
-- **Geographic coordinates**
+The tutorial uses the 1,000,660-row NYC Taxi sample from Chapter 2:
 
-## 🛠️ Setup Instructions
-
-### 1. Extract Sample Data from chapter2 location
 ```bash
-cd chapter02
-gunzip trips_0.gz
+gunzip -k chapter02/trips_0.gz      # creates chapter02/trips_0
 ```
 
-### 2. Update Configuration
-Edit the Scala file to update paths according to your environment:
+Edit `inputPath` at the top of `hudi_write_operation_tutorial.scala` to point at that file. The
+table is written to `/tmp/trips_table`, which must start empty. To start over at any point:
+
+```bash
+rm -rf /tmp/trips_table
+```
+
+### Start spark-shell
+
+```bash
+spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.0 \
+  --driver-memory 4g \
+  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+  --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+  --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog'
+```
+
+### Run the tutorial
+
+Run the whole file:
+
+```
+scala> :paste /path/to/hudiinaction/chapter03/hudi_write_operation_tutorial.scala
+```
+
+Or type `:paste`, paste one section, and press Ctrl+D. Paste mode is required because the
+multi-line snippets begin continuation lines with a dot, which the plain spark-shell prompt
+would evaluate one line at a time.
+
+### Expected results
+
+Every write is followed by a row count per partition (`vendor_id`). From a run on Spark 3.5.6,
+Java 11 and Hudi 1.2.0, starting from an empty table:
+
+| After | vendor_id=1 | vendor_id=2 |
+|---|---|---|
+| bulk_insert (any sort mode) | 468,855 | 531,805 |
+| insert of 10,000 new trips | 473,636 | 537,024 |
+| upsert of 1,000 updated trips | 473,636 | 537,024 |
+| delete of the 8 trips with rate_code_id = 6 | 473,628 | 537,024 |
+| insert_overwrite_table with the full input | 468,855 | 531,805 |
+| insert_overwrite of vendor 2 without rate code 2 | 468,855 | 518,863 |
+| delete_partition `vendor_id=2` | 468,855 | (partition removed) |
+
+The upsert leaves the counts unchanged because its rows are updates to existing trips, not new
+records. The script's comments show the full `show()` output for each step.
+
+## 2. HoodieStreamer
+
+> **Status:** the configuration below matches Chapter 3 and Hudi 1.2.0. The expected results are
+> derived from the input data and the Hudi 1.2.0 source code, but they are pending an end-to-end
+> run.
+
+### What is in the archive
+
+`hudi_streamer.tar.gz` extracts to `/tmp/hudi_streamer`:
+
+```
+/tmp/hudi_streamer/
+  streamer_input/    ten Parquet files of NYC taxi trips, 7,012,698 rows in total
+  streamer_props/    input.props (record key and partition field)
+  streamer_schema/   ny.avsc (Avro schema of the input)
+```
+
+### Run it
+
+```bash
+export SPARK_HOME=/path/to/spark-3.5.6-bin-hadoop3
+./chapter03/run_hudi_streamer.sh
+```
+
+The script extracts the archive (if needed), downloads the two Hudi 1.2.0 JARs into
+`/tmp/hudi_bundles`, prepares the input, and starts HoodieStreamer in continuous mode, writing to
+`/tmp/hudi-deltastreamer-ny`. It refuses to start if that table already exists:
+
+```bash
+rm -rf /tmp/hudi-deltastreamer-ny
+```
+
+Two things the script does that are worth knowing:
+
+- **It gives each input file its own modification time.** HoodieStreamer's DFS source reads files
+  oldest first and stops a batch at `--source-limit` (30 MB, about one file) only when the next
+  file is newer. Files extracted from an archive share one timestamp, so without this step the
+  first batch would read all ten files.
+- **It adds a copy of the first file as the fifth batch.** This simulates an upstream job
+  delivering the same data twice. Because the record key identifies each trip, the replayed rows
+  become updates rather than duplicates. On a Merge-on-Read table, updates are written to log
+  files, which gives the asynchronous compaction something to merge.
+
+### Key choices
+
+- **Record key:** `VendorID,tpep_pickup_datetime,PULocationID,DOLocationID,trip_distance,total_amount`.
+  The dataset has no trip ID column. A single column such as `VendorID` (only three values) would
+  collapse the 7,012,698 rows into 994 records. The six-column key leaves only two collisions in
+  the sample, and both are copies of the same trip.
+- **Ordering field:** `--source-ordering-fields tpep_dropoff_datetime`. When two versions of a
+  record share a key, the one with the later drop-off time wins; on a tie, the later write wins.
+
+### Expected results (pending verification)
+
+Stop the streamer with Ctrl+C once 11 delta commits have completed. In
+`/tmp/hudi-deltastreamer-ny/.hoodie/timeline/` you should see:
+
+- 11 `deltacommit` instants, one per input file (including the replay)
+- a `compaction` instant scheduled after the fifth delta commit, completing while later batches
+  are still being ingested
+
+Then check the data in spark-shell:
+
 ```scala
-// Update these paths in hudi_pipeline_quickstart.scala
-val inputPath = "/path/to/hudiinaction/chapter02/trips_0"
-val basePath  = "/tmp/trips_table"  // Or your preferred location
+val t = spark.read.format("hudi").load("file:///tmp/hudi-deltastreamer-ny")
+t.count()
+// expected: 7012696 (7,012,698 input rows minus the two duplicate copies; the replay adds none)
+
+t.where("VendorID = 1 and tpep_pickup_datetime = '2019-08-20 09:16:13'").
+  select("tpep_pickup_datetime", "tpep_dropoff_datetime").show()
+// expected: one row with drop-off 2019-08-20 09:41:11. This trip arrives twice, with 09:41:11
+// in the third batch and 09:40:33 in the sixth, and the ordering field keeps the later
+// drop-off time even though it was written first.
 ```
 
-### 3. Start Spark Shell
-```bash
-spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-            --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
-            --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
-            --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog'
-```
+## Files
 
-### 4. Run the Tutorial
+- `hudi_write_operation_tutorial.scala`: write operations tutorial, with expected outputs in comments
+- `run_hudi_streamer.sh`: HoodieStreamer setup and launch
+- `hudi_streamer.tar.gz`: HoodieStreamer input data, properties file and schema (Git LFS)
+- `README.md`: this guide
 
-Execute each write operation from hudi_ingestion_tutorial interactively by inspecting the output after each operation.
+## Further reading
 
-## 🔧 Key Configuration
-
-The tutorial demonstrates these essential Hudi configurations:
-
-- **Record Key**: `trip_id` (unique identifier for each record)
-- **Partition Field**: `vendor_id` (distributes data across partitions)
-- **Table Type**: Copy-on-Write (CoW) for optimal read performance
-- **Hive Style Partitioning**: Enabled for compatibility
-
-## 📝 Tutorial Steps
-
-### Section 1: Data Loading with bulk_insert
-- Load NYC taxi data from CSV
-- Bulk import entire data into Hudi table
-- Configure essential Hudi options
-
-### Section 2: Data Loading with bulk_insert with repartitioning strategy.
-- Employing sort modes with bulk insert operation. 
-
-### Section 3: Ingesting Immutable data via Insert operation
-- Ingest immutable data via insert operation to auto manage small files
-
-### Section 4: Upsert Operations
-- Execute upsert operation with Hudi to ingest both inserts and updates.
-
-### Section 5: Delete Operation
-- Execute delete operation with Hudi to delete some data.
-
-### Section 6: Insert_Overwrite_Table Operations
-- Execute insert_overwrite_table operation with Hudi to overwrite entire table with new data.
-
-### Section 7: Insert_Overwrite Operations
-- Execute insert_overwrite operation with Hudi to overwrite matching partitions.
-
-### Section 8: Delete_Partition Operations
-- Execute delete_partition operation with Hudi to delete entire partitions.
-
-## 🎯 Expected Outcomes
-
-After completing this chapter, you'll have:
-
-- A functioning Hudi table with ~1M records
-- Experience how to ingest immutable data into Hudi
-- Experience how to ingest both inserts and updates in the same batch 
-- Explore how to delete data with Hudi
-- Learn how to perform insert_overwrite operations with Hudi 
-- Learn how to delete entire partitions with Hudi
-
-## 📁 Files in This Chapter
-
-- `hudi_write_operation_tutorial.scala` - Complete tutorial script with detailed comments
-- `trips_0.gz` - NYC Taxi dataset sample (compressed)
-- `README.md` - This chapter guide
-
-## 💡 Tips for Success
-
-1. **Memory Settings**: Ensure Spark has at least 4GB RAM allocated
-2. **Path Configuration**: Use absolute paths to avoid confusion
-3. **Package Versions**: Match Hudi bundle version with your Spark version
-4. **Data Location**: Extract the dataset before running the tutorial
-5. **Iterative Learning**: Run sections incrementally to understand each concept
-
-## 📚 Further Reading
-
-- [Apache Hudi Documentation](https://hudi.apache.org/)
-- [Hudi Configuration Guide](https://hudi.apache.org/docs/configurations/)
-- [Spark-Hudi Integration](https://hudi.apache.org/docs/quick-start-guide/) 
+- [Hudi write operations](https://hudi.apache.org/docs/write_operations)
+- [HoodieStreamer](https://hudi.apache.org/docs/hoodie_streaming_ingestion)
+- [Hudi configurations](https://hudi.apache.org/docs/configurations)
