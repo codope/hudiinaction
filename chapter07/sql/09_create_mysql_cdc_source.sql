@@ -1,4 +1,5 @@
--- Section 7.6: Flink CDC source table for MySQL merchants
+-- Replicating MySQL with Flink CDC: source table for the merchants table.
+-- scan.startup.mode defaults to initial: snapshot first, then read the binlog.
 CREATE TABLE mysql_merchants (
     merchant_id   STRING,
     business_name STRING,

@@ -1,4 +1,7 @@
--- Section 7.6: Hudi MoR sink for CDC merchant data
+-- Replicating MySQL with Flink CDC: Hudi MoR sink for merchant data (not partitioned).
+-- Updates and deletes are applied either way; changelog.enabled additionally keeps
+-- intermediate changes in the log files for streaming readers (best effort: compaction
+-- merges them).
 CREATE TABLE hudi_merchants (
     merchant_id   STRING,
     business_name STRING,
@@ -30,6 +33,6 @@ CREATE TABLE hudi_merchants (
     'compaction.delta_commits'               = '5',
 
     -- Write tuning
-    'write.tasks'                            = '4',
+    'write.tasks'                            = '2',
     'write.batch.size'                       = '64'
 );

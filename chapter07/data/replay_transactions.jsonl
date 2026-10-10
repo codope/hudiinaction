@@ -1,0 +1,1 @@
+{"transaction_id":"TXN-0002","event_type":"AUTHORIZATION","merchant_id":"M004","customer_id":"C101","amount":129.99,"currency":"USD","status":"settled","record_version":3,"created_ts":"2024-06-15T10:01:00","event_ts":"2024-06-15T10:01:00","processing_ts":"2024-06-15T18:00:00"}

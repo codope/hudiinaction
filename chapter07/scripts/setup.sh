@@ -35,6 +35,9 @@ echo "[3/3] Creating Kafka topic and producing sample events..."
 docker compose exec -T kafka kafka-topics --bootstrap-server kafka:29092 \
   --create --topic payments.transactions --partitions 4 --replication-factor 1 \
   --if-not-exists
+docker compose exec -T kafka kafka-topics --bootstrap-server kafka:29092 \
+  --create --topic payments.transactions.replay --partitions 1 --replication-factor 1 \
+  --if-not-exists
 
 "$SCRIPT_DIR/produce_events.sh"
 
@@ -44,5 +47,5 @@ echo "  Flink UI:  http://localhost:8081"
 echo "  Kafka:     localhost:9092"
 echo "  MySQL:     localhost:3306 (user: cdc_reader / cdc_pass, db: novapay)"
 echo ""
-echo "Run SQL files with:  ./scripts/run_section.sh sql/01_create_kafka_source.sql"
+echo "Run one file with:   ./scripts/run_section.sh sql/04_verify_ingestion.sql"
 echo "Run everything:      ./scripts/run_all.sh"

@@ -1,12 +1,13 @@
--- Section 7.8: Partition TTL configuration for bronze transactions
--- These properties can be added to the CREATE TABLE WITH clause or set via ALTER TABLE.
--- Hudi drops partitions whose date-based path exceeds the retention window.
-
--- Example: add to hudi_transactions WITH clause
+-- Managing streaming tables in production: partition TTL and cleaner settings.
+-- Add these to a table's WITH clause.
+--
+-- Partition TTL: Hudi drops partitions that have not received new data for 180
+-- days, judged from its commit metadata (not from the date in the partition name).
+-- With inline=true, the check runs after each commit.
 -- 'hoodie.partition.ttl.inline'                       = 'true',
 -- 'hoodie.partition.ttl.management.strategy.type'     = 'KEEP_BY_TIME',
 -- 'hoodie.partition.ttl.strategy.days.retain'         = '180'
 
--- For the CDC merchants table (not date-partitioned), use cleaner-based retention:
+-- For the merchants table (not partitioned), bound file versions with the cleaner:
 -- 'hoodie.clean.policy'           = 'KEEP_LATEST_COMMITS',
 -- 'hoodie.clean.commits.retained' = '3'

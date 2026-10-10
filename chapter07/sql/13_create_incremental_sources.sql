@@ -1,4 +1,5 @@
--- Section 7.7: Incremental source tables for the Bronze layer
+-- Medallion pipeline: streaming (incremental) read of the bronze transactions table.
+-- proc_time is a processing-time attribute for the lookup join in 15.
 CREATE TABLE bronze_transactions_incremental (
     transaction_id  STRING,
     event_type      STRING,
@@ -8,32 +9,14 @@ CREATE TABLE bronze_transactions_incremental (
     currency        STRING,
     status          STRING,
     record_version  BIGINT,
+    created_ts      TIMESTAMP(3),
     event_ts        TIMESTAMP(3),
     processing_ts   TIMESTAMP(3),
-    dt              STRING
+    dt              STRING,
+    proc_time AS PROCTIME()
 ) WITH (
     'connector'                      = 'hudi',
-    'path'                           = '/tmp/hudi/bronze/transactions',
-    'table.type'                     = 'MERGE_ON_READ',
-    'read.streaming.enabled'         = 'true',
-    'read.start-commit'              = 'earliest',
-    'read.streaming.check-interval'  = '60'
-);
-
-CREATE TABLE bronze_merchants_incremental (
-    merchant_id   STRING,
-    business_name STRING,
-    category      STRING,
-    country_code  STRING,
-    status        STRING,
-    fee_tier      STRING,
-    compliance_ok BOOLEAN,
-    created_at    TIMESTAMP(3),
-    updated_at    TIMESTAMP(3),
-    PRIMARY KEY (merchant_id) NOT ENFORCED
-) WITH (
-    'connector'                      = 'hudi',
-    'path'                           = '/tmp/hudi/bronze/merchants',
+    'path'                           = '/tmp/hudi/bronze/transactions_v2',
     'table.type'                     = 'MERGE_ON_READ',
     'read.streaming.enabled'         = 'true',
     'read.start-commit'              = 'earliest',

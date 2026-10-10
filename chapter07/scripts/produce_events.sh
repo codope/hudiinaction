@@ -13,3 +13,9 @@ done < "$DATA_FILE" | docker compose -f "$CH_DIR/docker-compose.yml" exec -T kaf
   kafka-console-producer --bootstrap-server kafka:29092 --topic payments.transactions
 
 echo "Done. $(wc -l < "$DATA_FILE" | tr -d ' ') events produced."
+
+REPLAY_FILE="$CH_DIR/data/replay_transactions.jsonl"
+echo "Producing corrected events to payments.transactions.replay..."
+docker compose -f "$CH_DIR/docker-compose.yml" exec -T kafka \
+  kafka-console-producer --bootstrap-server kafka:29092 --topic payments.transactions.replay < "$REPLAY_FILE"
+echo "Done. $(wc -l < "$REPLAY_FILE" | tr -d ' ') events produced."

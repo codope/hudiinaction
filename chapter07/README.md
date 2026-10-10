@@ -22,10 +22,12 @@ This chapter builds a complete streaming and CDC data platform for a fintech com
 
 | Component | Version |
 |-----------|---------|
-| Apache Hudi | 1.2.0 |
+| Apache Hudi | 1.2.0 (Flink 1.20 bundle) |
 | Apache Flink | 1.20 |
-| Flink CDC | 3.2.0 |
-| Kafka (Confluent) | 7.6.1 |
+| Flink CDC (MySQL SQL connector) | 3.2.0, with MySQL JDBC driver 8.0.27 |
+| Flink Kafka connector | 3.3.0-1.20 |
+| Hadoop client (needed by the Hudi Flink bundle) | 3.3.6 |
+| Apache Kafka | 3.6 (Confluent Platform 7.6.1 images) |
 | MySQL | 8.0 |
 
 ## Setup Instructions
@@ -35,107 +37,69 @@ This chapter builds a complete streaming and CDC data platform for a fintech com
    cd chapter07
    ./scripts/setup.sh
    ```
-   This builds the Flink Docker image (with Hudi + CDC JARs), starts all services, seeds MySQL with 10 sample merchants, and pushes 20 sample transaction events to Kafka.
+   This builds the Flink image, starts Flink, Kafka and MySQL, seeds MySQL with 10 merchants, and
+   produces 22 transaction events to `payments.transactions` and one corrected event to
+   `payments.transactions.replay`.
 
-2. **Run SQL files one at a time** (follow along with the chapter):
-   ```bash
-   ./scripts/run_section.sh sql/01_create_kafka_source.sql
-   ./scripts/run_section.sh sql/02_create_hudi_sink_flink_state.sql
-   ./scripts/run_section.sh sql/03_run_ingestion.sql
-   ```
-
-3. **Or run everything at once:**
+2. **Run the whole chapter:**
    ```bash
    ./scripts/run_all.sh
    ```
+   This runs the chapter in eight stages (below). Each stage starts its streaming jobs, waits for a
+   few checkpoints (Flink commits to Hudi on each 30-second checkpoint), runs a verification query,
+   and cancels the jobs that the next stage replaces. It takes about 12 minutes.
+
+3. **Or run one file at a time:**
+   ```bash
+   ./scripts/run_section.sh sql/03_run_ingestion.sql detached   # streaming INSERT
+   ./scripts/run_section.sh sql/04_verify_ingestion.sql         # batch query
+   ```
+   Every file runs in its own Flink SQL Client session, and Flink's default catalog lives in memory.
+   So a file that uses tables declared elsewhere names those files on a `-- requires:` line, and the
+   scripts prepend them. Streaming INSERT files must be run `detached`; stop them from the Flink UI
+   (http://localhost:8081) or with `./scripts/teardown.sh`.
 
 4. **Tear down when done:**
    ```bash
    ./scripts/teardown.sh
    ```
 
-## Tutorial Steps
+`write.tasks` is 2 in every table so the demo fits one TaskManager; the chapter uses NovaPay's
+production values (4 for bronze, 64 for silver).
 
-### Section 7.2: Streaming Event Ingestion
-| File | Description |
-|------|-------------|
-| `sql/01_create_kafka_source.sql` | Kafka source table for payment events |
-| `sql/02_create_hudi_sink_flink_state.sql` | Hudi MoR sink with FLINK_STATE index |
-| `sql/03_run_ingestion.sql` | INSERT INTO to start the streaming pipeline |
-| `sql/04_verify_ingestion.sql` | Verification queries |
+## Stages and Expected Output
 
-### Section 7.3: Scaling with Bucket Index
-| File | Description |
-|------|-------------|
-| `sql/05_switch_to_bucket_index.sql` | Recreate table with BUCKET index (128 buckets) |
-| `sql/06_run_ingestion_bucket.sql` | Re-run ingestion with new config |
+All sample transactions were created on 15 June 2024, so every table has one partition,
+`2024-06-15`. TXN-0011 is authorized at 23:58 and settled at 00:04 the next day; because `dt` comes
+from `created_ts`, it stays a single row in `2024-06-15`.
 
-### Section 7.4: Non-Blocking Concurrency Control
-| File | Description |
-|------|-------------|
-| `sql/07_enable_nbcc.sql` | Add NBCC + StorageBasedLockProvider |
+| Stage | Chapter section | Files | Expected output |
+|---|---|---|---|
+| 1 | Streaming event ingestion | 01–04 | 11 transactions: authorized 2, chargeback 1, refunded 2, settled 6 |
+| 2 | Scaling writes with bucket index | 05, 06, 06b | `rows_total = 11`, `transactions = 11`; TXN-0011 settled in `2024-06-15` |
+| 3 | Running concurrent pipelines with NBCC | 07, 07b, 07c | Both writers commit; 11 rows. TXN-0002 shows M002 or M004 depending on which writer committed last (commit-time ordering) |
+| 4 | Handling out-of-order events | 08, 08b, 08c | TXN-0002 = M004, `record_version` 3, whatever the commit order |
+| 5 | Replicating MySQL with Flink CDC | 09–12 | 10 merchants: electronics 1, financial 1, food_delivery 2, grocery 2, media 1, retail 3 |
+| 6 | Building the silver layer | 13–15b | 11 enriched rows; TXN-0002 enriched with TechGadgets Plus (electronics) |
+| 7 | Building the gold layer | 16, 17 | 6 rows keyed by (dt, category, currency); grocery appears twice, CAD 67.30 and GBP 55.00 |
+| 8 | Recovering a partition with INSERT OVERWRITE | 19 | Staging 11 rows, 2324.72 total; partition `2024-06-15` has 11 rows after the overwrite |
 
-### Section 7.5: Event-Time Ordering
-| File | Description |
-|------|-------------|
-| `sql/08_event_time_ordering.sql` | Switch to EVENT_TIME_ORDERING with record_version |
-
-### Section 7.6: CDC Replication
-| File | Description |
-|------|-------------|
-| `sql/09_create_mysql_cdc_source.sql` | Flink CDC source for MySQL merchants |
-| `sql/10_create_hudi_merchants_sink.sql` | Hudi MoR sink with changelog enabled |
-| `sql/11_run_cdc_pipeline.sql` | Start CDC replication |
-| `sql/12_verify_cdc.sql` | Verification queries |
-
-### Section 7.7: Medallion Pipeline
-| File | Description |
-|------|-------------|
-| `sql/13_create_incremental_sources.sql` | Incremental read tables for both Bronze tables |
-| `sql/14_create_silver_sink.sql` | Silver enriched_transactions table (64 buckets) |
-| `sql/15_run_silver_pipeline.sql` | Silver pipeline: join transactions with merchants |
-| `sql/16_create_gold_table.sql` | Gold daily summary table (CoW, 2 buckets) |
-| `sql/17_run_gold_aggregation.sql` | Gold aggregation batch |
-
-### Section 7.8: Production Operations
-| File | Description |
-|------|-------------|
-| `sql/18_partition_ttl.sql` | Partition TTL and cleaner configuration examples |
-| `sql/19_insert_overwrite_recovery.sql` | INSERT OVERWRITE for partition recovery |
-| `sql/20_hudi_cli_commands.sh` | Hudi CLI commands for timeline debugging |
-
-## Files in This Chapter
-
-```
-chapter07/
-  README.md                           # This file
-  Dockerfile                          # Flink 1.20 + Hudi/CDC JARs
-  docker-compose.yml                  # Flink, Kafka, Zookeeper, MySQL
-  data/
-    merchants_seed.sql                # 10 sample merchants (loaded into MySQL on startup)
-    sample_transactions.jsonl         # 20 sample Kafka events
-  sql/
-    01-20 SQL files                   # One per chapter section (see above)
-  scripts/
-    setup.sh                         # Start environment, seed data, produce events
-    run_section.sh                   # Run a single SQL file through Flink SQL Client
-    run_all.sh                       # Run all SQL files in order
-    produce_events.sh                # Push sample events to Kafka
-    teardown.sh                      # Stop everything, remove volumes
-```
+`18_partition_ttl.sql` and `20_hudi_cli_commands.sh` are reference only (configuration and CLI
+commands from the chapter); `run_all.sh` does not execute them.
 
 ## Troubleshooting
 
 - **Flink UI not loading at http://localhost:8081**: Wait 30 seconds after `docker compose up` — the JobManager takes time to initialize.
 - **CDC pipeline fails with "Access denied"**: Ensure MySQL started with binlog enabled. The seed script grants REPLICATION permissions to `cdc_reader`.
 - **Out of memory**: Flink + Kafka + MySQL need ~6-8 GB. Increase Docker's memory limit.
-- **SQL Client errors about missing JARs**: The Dockerfile downloads Hudi, CDC, and Kafka connector JARs at build time. If the build failed, check your internet connection and re-run `docker compose build`.
+- **SQL Client errors about missing JARs**: The Dockerfile downloads the Hudi, Flink CDC, MySQL JDBC, Kafka connector and Hadoop client JARs at build time. If the build failed, check your internet connection and re-run `docker compose build`.
+- **TLS errors pulling images or downloading JARs behind a corporate proxy**: the Docker VM and the image build must trust your proxy's root CA.
 
 ## Sample Data
 
 **Merchants** (10 rows in MySQL): Covers food_delivery, retail, electronics, grocery, media, and financial categories. Includes one suspended merchant (M006) and one test merchant (M010).
 
-**Transactions** (20 events in Kafka): 10 unique transaction_ids across 8 merchants, with multiple event types (AUTHORIZATION, SETTLEMENT, REFUND, CHARGEBACK) demonstrating upsert behavior. Currencies: USD, GBP, CAD, INR.
+**Transactions** (22 events in Kafka): 11 unique transaction_ids across 8 merchants, each event carrying `created_ts` (the transaction's creation time) and `record_version`, with multiple event types (AUTHORIZATION, SETTLEMENT, REFUND, CHARGEBACK) demonstrating upsert behavior. Currencies: USD, GBP, CAD, INR.
 
 ## Further Reading
 

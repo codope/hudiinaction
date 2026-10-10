@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
+# Run one SQL file, together with the files named on its "-- requires:" line.
+# Streaming INSERT files are submitted detached; use the Flink UI to watch or stop them.
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CH_DIR="$(dirname "$SCRIPT_DIR")"
+source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 <sql-file>"
-  echo "Example: $0 sql/01_create_kafka_source.sql"
+  echo "Usage: $0 <sql-file> [detached]"
+  echo "Example: $0 sql/03_run_ingestion.sql detached"
   exit 1
 fi
-
-SQL_FILE="$1"
-SQL_BASENAME="$(basename "$SQL_FILE")"
-
-echo "=== Running: $SQL_BASENAME ==="
-docker compose -f "$CH_DIR/docker-compose.yml" exec -T jobmanager \
-  /opt/flink/bin/sql-client.sh -f "/opt/sql/$SQL_BASENAME"
-echo "=== Done: $SQL_BASENAME ==="
+run_sql "$1" "${2:-}"

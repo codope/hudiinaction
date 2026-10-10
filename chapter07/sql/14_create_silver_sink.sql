@@ -1,4 +1,5 @@
--- Section 7.7: Silver layer — enriched transactions with merchant data
+-- Medallion pipeline: Silver enriched transactions, partitioned like bronze.
+-- write.tasks is 2 so the local demo fits one TaskManager; the book uses 64.
 CREATE TABLE silver_enriched_transactions (
     transaction_id  STRING,
     event_type      STRING,
@@ -14,7 +15,8 @@ CREATE TABLE silver_enriched_transactions (
     record_version  BIGINT,
     dt              STRING,
     PRIMARY KEY (transaction_id) NOT ENFORCED
-) WITH (
+) PARTITIONED BY (dt)
+WITH (
     'connector'                              = 'hudi',
     'path'                                   = '/tmp/hudi/silver/enriched_transactions',
     'table.type'                             = 'MERGE_ON_READ',
@@ -22,8 +24,5 @@ CREATE TABLE silver_enriched_transactions (
     'hoodie.bucket.index.num.buckets'        = '64',
     'hoodie.write.record.merge.mode'         = 'EVENT_TIME_ORDERING',
     'ordering.fields'                        = 'record_version',
-    'compaction.schedule.enabled'            = 'true',
-    'compaction.async.enabled'               = 'true',
-    'compaction.delta_commits'               = '5',
-    'write.tasks'                            = '64'
+    'write.tasks'                            = '2'
 );

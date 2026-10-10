@@ -1,47 +1,52 @@
 #!/usr/bin/env bash
+# Run the whole chapter in order. Each stage starts its streaming jobs, waits for
+# a few checkpoints, prints a verification query, and stops the jobs the next
+# stage replaces. Expected output is listed in README.md.
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CH_DIR="$(dirname "$SCRIPT_DIR")"
+echo "### Stage 1: streaming ingestion with FLINK_STATE index"
+run_sql 03_run_ingestion.sql detached
+wait_for_commits
+run_sql 04_verify_ingestion.sql
+cancel_jobs
 
-STREAMING_FILES="03_run_ingestion.sql 06_run_ingestion_bucket.sql 11_run_cdc_pipeline.sql 15_run_silver_pipeline.sql"
+echo "### Stage 2: bucket index"
+run_sql 06_run_ingestion_bucket.sql detached
+wait_for_commits
+run_sql 06b_verify_bucket.sql
+cancel_jobs
 
-submit_sql() {
-  local file="$1"
-  docker compose -f "$CH_DIR/docker-compose.yml" exec -T jobmanager \
-    /opt/flink/bin/sql-client.sh -f "/opt/sql/$file"
-}
+echo "### Stage 3: two writers with NBCC (live + backfill)"
+run_sql 07b_run_nbcc_writers.sql detached
+wait_for_commits
+run_sql 07c_verify_nbcc.sql
+cancel_jobs
 
-is_streaming() {
-  local file="$1"
-  for s in $STREAMING_FILES; do
-    [ "$file" = "$s" ] && return 0
-  done
-  return 1
-}
+echo "### Stage 4: event-time ordering on a new table"
+run_sql 08b_run_ingestion_v2.sql detached
+wait_for_commits
+run_sql 08c_verify_event_time.sql
+# The live writer keeps running for the medallion stages; the backfill is done.
+cancel_jobs hudi_transactions_v2_backfill
 
-echo "=== Chapter 7: Running all SQL sections ==="
-echo ""
-echo "NOTE: Streaming INSERT INTO jobs (03, 06, 11, 15) are submitted in"
-echo "detached mode. They run as background Flink jobs. Use the Flink UI"
-echo "at http://localhost:8081 to monitor or cancel them."
-echo ""
+echo "### Stage 5: MySQL CDC"
+run_sql 11_run_cdc_pipeline.sql detached
+wait_for_commits
+run_sql 12_verify_cdc.sql
 
-for sql_file in "$CH_DIR"/sql/*.sql; do
-  basename="$(basename "$sql_file")"
-  echo "--- $basename ---"
+echo "### Stage 6: Silver (lookup join)"
+run_sql 15_run_silver_pipeline.sql detached
+wait_for_commits 105
+run_sql 15b_verify_silver.sql
 
-  if is_streaming "$basename"; then
-    echo "  [streaming] Submitting in detached mode..."
-    docker compose -f "$CH_DIR/docker-compose.yml" exec -T jobmanager \
-      /opt/flink/bin/sql-client.sh -D execution.attached=false -f "/opt/sql/$basename"
-    sleep 5
-  else
-    submit_sql "$basename"
-  fi
-  echo ""
-done
+echo "### Stage 7: Gold (batch recompute)"
+run_sql 17_run_gold_aggregation.sql
 
-echo "=== All DDL/batch sections complete ==="
-echo "Streaming jobs are running in the background."
-echo "Monitor at http://localhost:8081"
+echo "### Stage 8: partition recovery with INSERT OVERWRITE"
+# Pause the writers on hudi_transactions_v2 first, as the chapter does.
+cancel_jobs silver_enriched_transactions
+cancel_jobs hudi_transactions_v2
+run_sql 19_insert_overwrite_recovery.sql
+
+echo "### Done. The CDC job is still running; ./scripts/teardown.sh stops everything."
