@@ -9,7 +9,7 @@ Companion code for the chapter's examples, on a sample of the TPC-DS `store_sale
 | `spark_sql_queries.sql` | The same table from `spark-sql`: snapshot query, `CALL show_commits`, `hudi_table_changes` |
 | `query_types.scala` | Snapshot, read-optimized, time travel, incremental (`latest_state`), and CDC queries |
 | `metasync/` | Hive Metastore, AWS Glue, BigQuery, and DataHub sync |
-| `ai_ml/` | Reading the table from hudi-rs (Python), Ray Data, and Daft |
+| `ai_ml/` | Reading the table without Spark: hudi-rs from Python, and DataFusion from Rust |
 
 ## Requirements
 
@@ -109,16 +109,30 @@ writes table version 6 for that reason.
 Apache XTable is covered in Chapter 9. Its latest release (0.4.0-incubating) is built on Hudi
 0.14, so it reads table-version-6 tables only.
 
-## AI/ML engines (`ai_ml/`)
+## Reading without Spark (`ai_ml/`)
+
+hudi-rs 0.5.0 (Python package `hudi`) reads Hudi 1.x tables (table versions 8 and 9):
 
 ```bash
 pip install -r chapter04/ai_ml/requirements.txt
-python chapter04/ai_ml/ai_ml_engines.py hudi ray daft
+python chapter04/ai_ml/ai_ml_engines.py <commit_time from CALL show_commits>
+# snapshot rows: 2880404, and 2880404 rows as of the load commit
 ```
 
-Daft reads Copy-on-Write tables with table version 5 or 6 only. `ai_ml/make_v6_copy.scala`
-writes a table-version-6 copy at `/tmp/hudi_demo_tbl_v6` for it. Ray's `read_hudi` is an alpha
-API.
+The Rust example queries the table through Apache DataFusion:
+
+```bash
+cd chapter04/ai_ml/rust_datafusion && cargo run --release
+```
+
+Daft and Ray Data cannot read tables written by Hudi 1.2.1 yet (checked October 2026):
+
+- Daft 0.7.26 reads Copy-on-Write tables with table version 5 or 6 only, and a table-version-6
+  table written by Hudi 1.2.1 fails on a missing `hoodie.table.keygenerator.class`.
+- Ray 2.59's `read_hudi` (alpha) calls a hudi-rs API that 0.5.0 removed. With hudi-rs 0.4.0 it
+  rejects table version 9 and finds no files in a table-version-6 table written by Hudi 1.2.1.
+  It also reads base files only (read-optimized for Merge-on-Read tables), and its incremental
+  mode returns whole changed file slices.
 
 ## Further reading
 
