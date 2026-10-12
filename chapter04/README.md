@@ -98,7 +98,7 @@ Known issues in Hudi 1.2.1, worked around in `query_types.scala`:
 
 | Script | Bundle(s) | Status |
 |---|---|---|
-| `01_hms_sync.scala` | `hudi-spark3.5-bundle_2.12` | Write-time sync and standalone `HiveSyncTool`, for a local Hive 2.3.9 metastore (setup in the script header) |
+| `01_hms_sync.scala` | `hudi-spark3.5-bundle_2.12` | Run: write-time sync and standalone `HiveSyncTool` against a local Hive 2.3.9 metastore; both tables read back 2,880,404 rows |
 | `02_glue_sync.scala` | + `hudi-aws-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs AWS) |
 | `03_bigquery_sync.scala` | + `hudi-gcp-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs GCP) |
 | `04_datahub_sync.scala` | + `hudi-datahub-sync-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs DataHub) |
