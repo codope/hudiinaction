@@ -5,22 +5,24 @@
  * Record key: (ss_item_sk, ss_ticket_number).
  * Hudi 1.2.1, Spark 3.5. Docs: https://hudi.apache.org/docs/syncing_metastore/
  *
- * Prerequisite: a Hive Metastore listening on thrift://localhost:9083. For a local test you
- * can start a standalone metastore from the Hive 2.3.9 jars that ship with Spark. Save this as
- * hive-site.xml in a new directory and run the java command from that directory:
- *
- *   <configuration>
- *     <property><name>javax.jdo.option.ConnectionURL</name>
- *       <value>jdbc:derby:;databaseName=metastore_db;create=true</value></property>
- *     <property><name>datanucleus.schema.autoCreateAll</name><value>true</value></property>
- *     <property><name>hive.metastore.schema.verification</name><value>false</value></property>
- *   </configuration>
- *
- *   java -cp ".:$SPARK_HOME/jars/*" org.apache.hadoop.hive.metastore.HiveMetaStore -p 9083
+ * Prerequisite: a Hive Metastore listening on thrift://localhost:9083 (local setup below).
  *
  * Launch spark-shell with the command in chapter04/README.md, then:
  *   scala> :paste /path/to/hudiinaction/chapter04/metasync/01_hms_sync.scala
  */
+
+// For a local test, start a standalone metastore from the Hive 2.3.9 jars that ship with Spark.
+// Save this as hive-site.xml in a new directory and run the java command from that directory:
+//
+//   <configuration>
+//     <property><name>javax.jdo.option.ConnectionURL</name>
+//       <value>jdbc:derby:;databaseName=metastore_db;create=true</value></property>
+//     <property><name>datanucleus.schema.autoCreateAll</name><value>true</value></property>
+//     <property><name>hive.metastore.schema.verification</name><value>false</value></property>
+//     <property><name>hive.async.log.enabled</name><value>false</value></property>
+//   </configuration>
+//
+//   java -cp ".:$SPARK_HOME/jars/*" org.apache.hadoop.hive.metastore.HiveMetaStore -p 9083
 
 import org.apache.spark.sql.SaveMode
 
