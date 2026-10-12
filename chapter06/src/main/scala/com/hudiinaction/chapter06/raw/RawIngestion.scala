@@ -34,12 +34,18 @@ object RawIngestion {
       .add("country", "string")
       .add("attributes", "string")
       .add("dt", "string")
+      .add("line_version", "long")
+      .add("line_opened_ts", "long")
+      .add("gross_to_date", "double")
+      .add("refund_to_date", "double")
+      .add("fee_to_date", "double")
+      .add("chargeback_to_date", "double")
 
     val rawKafka = spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", kafkaBootstrap)
       .option("subscribe", topic)
-      .option("startingOffsets", "latest")
+      .option("startingOffsets", "earliest")
       .load()
 
     val valueDf = rawKafka.selectExpr("CAST(value AS STRING) AS json_str")
@@ -48,6 +54,7 @@ object RawIngestion {
       .select(from_json(col("json_str"), schema).alias("p"))
       .select("p.*")
       .withColumn("event_ts", ($"event_ts" / lit(1000000)).cast("timestamp"))
+      .withColumn("line_opened_ts", ($"line_opened_ts" / lit(1000000)).cast("timestamp"))
       .withColumn("ingest_ts", current_timestamp())
       .withColumn("dt", date_format(col("event_ts"), "yyyy-MM-dd"))
 

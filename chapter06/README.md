@@ -26,14 +26,14 @@ In this chapter, you will build and understand:
 - **Incremental pipelines**
   - Raw → Silver using HoodieStreamer + HoodieIncrSource
 
-- **Handling update-heavy workloads**
-  - Simulating retry storms (real production issue)
+- **Late and out-of-order events**
+  - Versioned order line snapshots, resolved by the ordering field
 
 - **Table services in action**
   - Compaction, clustering, metadata table
 
 - **Failure recovery**
-  - Savepoints and restore
+  - Recovering from polluted upstream data with savepoints and restore
 
 - **Governance workflows**
   - GDPR deletes
@@ -53,6 +53,7 @@ Kafka → Raw (Hudi CoW) → Silver (Hudi MoR)
 - Scala 2.12
 - sbt
 - Apache Spark 3.5.x
+- Apache Hudi 1.2.1 (pulled by the scripts via `--packages`)
 - Docker + Docker Compose
 
 ---
@@ -82,11 +83,23 @@ sbt clean package
 ## Savepoint
 ./scripts/create_demo_savepoints.sh
 
-## 🔥 Simulating Retry Storm
-./scripts/run_producer.sh retry_storm 5000
+## 🔥 Simulating polluted upstream data
+./scripts/run_producer.sh polluted 30
+
+A buggy payment-service release sends one more event for order lines 1–30. The events carry
+valid event IDs and higher `line_version` values, but `gross_to_date` is ten times too high for
+every third line. Raw commits them and HoodieStreamer propagates them, so silver now reports
+inflated gross and net payouts.
 
 ## Restore
+Stop both ingestion pipelines (raw ingestion and HoodieStreamer), then:
+
 ./scripts/restore_demo_savepoints.sh
+
+## Replay corrected events
+Restart both pipelines, then send the same events with correct values:
+
+./scripts/run_producer.sh polluted 30 fixed
 
 ---
 

@@ -74,6 +74,10 @@
       "default": null
     },
     {
+      "name": "line_version",
+      "type": "long"
+    },
+    {
       "name": "last_updated_ts",
       "type": {
         "type": "long",

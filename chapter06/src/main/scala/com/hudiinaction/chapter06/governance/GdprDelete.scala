@@ -50,15 +50,16 @@ object GdprDelete {
     val silverToDelete = spark.read.format("hudi")
       .load(silverPath)
       .filter($"vendor_id" === vendorId)
-      .select("vendor_id", "order_line_id", "payout_date", "last_updated_ts")
+      .select("vendor_id", "order_line_id", "payout_date", "line_version")
 
     if (silverToDelete.head(1).nonEmpty) {
       silverToDelete.write
         .format("hudi")
         .option("hoodie.table.name", "hudi_vendor_payouts")
         .option("hoodie.datasource.write.recordkey.field", "vendor_id,order_line_id")
-        .option("hoodie.datasource.write.precombine.field", "last_updated_ts")
+        .option("hoodie.datasource.write.precombine.field", "line_version")
         .option("hoodie.datasource.write.partitionpath.field", "payout_date")
+        .option("hoodie.index.type", "GLOBAL_RECORD_LEVEL_INDEX")
         .option("hoodie.datasource.write.operation", "delete")
         .mode("append")
         .save(silverPath)
