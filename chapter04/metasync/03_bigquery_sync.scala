@@ -1,84 +1,69 @@
 /*
- * 03_bigquery_sync.scala — Sync a Hudi table to BigQuery (external table via manifest)
+ * 03_bigquery_sync.scala: sync a Hudi table to Google BigQuery as an external table.
  *
- * Prereqs
- * - GCP project + GCS bucket (e.g., gs://my-gcs-bucket/sales_hudi_bq)
- * - Service account with access to GCS + BigQuery (set GOOGLE_APPLICATION_CREDENTIALS)
- * - Include hudi-gcp bundle and spark-bigquery connector when using CLI sync.
- * Docs: Hudi BigQuery — https://hudi.apache.org/docs/gcp_bigquery/
+ * Hudi 1.2.1, Spark 3.5. Docs: https://hudi.apache.org/docs/gcp_bigquery/
+ * Not run by the authors (needs a GCP project). Config keys checked against the 1.2.1 source.
+ *
+ * BigQuery sees Copy-on-Write tables and the read-optimized view of Merge-on-Read tables.
+ *
+ * Prerequisites
+ * - A GCP project, a GCS bucket, and credentials with GCS and BigQuery access
+ *   (GOOGLE_APPLICATION_CREDENTIALS). Spark configured for gs:// paths (GCS connector).
+ * - The Hudi GCP bundle next to the Spark bundle:
+ *     spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.1,org.apache.hudi:hudi-gcp-bundle:1.2.1 \
+ *       <the --conf settings from chapter04/README.md>
  */
 
-/// spark-shell launcher (Dataproc or local with GCS connector):
-// spark-shell --packages \
-//  org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-//  --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
-//  --conf spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension \
-//  --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog \
-//  --conf spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar
+import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.functions._
 
-val inputPath = "/tmp/input_data/"
+val inputPath = "/tmp/input_data"
 val basePath  = "gs://my-gcs-bucket/sales_hudi_bq"
 val projectId = "my-gcp-project"
 val dataset   = "hudi_bigquery_db"
 val tableName = "sales_hudi"
 
-// Prepare a hive-style PARTITIONED DataFrame (partition by ss_store_sk just for demo)
-import org.apache.spark.sql.functions._
-val raw = spark.read.format("parquet").load(inputPath).drop("_hoodie_commit_time","_hoodie_commit_seqno","_hoodie_record_key","_hoodie_partition_path","_hoodie_file_name")
-val df  = raw.withColumn("ss_store_sk_part", coalesce(col("ss_store_sk"), lit(0)))  // safe partition key
+// BigQuery sync expects a hive-style partitioned table; partition by store for the demo.
+val raw = spark.read.parquet(inputPath)
+val df  = raw.drop(raw.columns.filter(_.startsWith("_hoodie_")): _*)
+  .withColumn("store", coalesce(col("ss_store_sk"), lit(0)))
 
-import org.apache.spark.sql.SaveMode
 val writeOpts = Map(
   "hoodie.table.name" -> tableName,
-  "hoodie.datasource.write.table.type" -> "COPY_ON_WRITE",
-  "hoodie.datasource.write.recordkey.field" -> "ss_item_sk",
-  "hoodie.datasource.write.partitionpath.field" -> "ss_store_sk_part",
-  "hoodie.datasource.write.keygenerator.class" -> "org.apache.hudi.keygen.SimpleKeyGenerator",
+  "hoodie.datasource.write.recordkey.field" -> "ss_item_sk,ss_ticket_number",
+  "hoodie.datasource.write.partitionpath.field" -> "store",
+  "hoodie.datasource.write.hive_style_partitioning" -> "true",
   "hoodie.datasource.write.operation" -> "bulk_insert",
-  "hoodie.bulkinsert.shuffle.parallelism" -> "50",
-
-  // Enable BigQuery sync via meta sync classes
+  // BigQuery sync after each commit
   "hoodie.datasource.meta.sync.enable" -> "true",
-  "hoodie.datasource.meta.sync.classes" -> "org.apache.hudi.gcp.bigquery.BigQuerySyncTool",
-  "hoodie.gcp.project.id" -> projectId,
-  "hoodie.gcp.bigquery.sync.dataset.name" -> dataset,
-  "hoodie.gcp.bigquery.sync.table.name" -> tableName,
-  "hoodie.gcp.bigquery.sync.partition_fields" -> "ss_store_sk_part",
-  // Recommend using BigQuery manifest flow
-  "hoodie.gcp.bigquery.sync.use_bq_manifest_file" -> "true",
-  // (Optional) Use GCS listing for partitioned tables
-  "hoodie.gcp.bigquery.sync.use_file_listing_from_gcs" -> "true"
-)
+  "hoodie.meta.sync.client.tool.class" -> "org.apache.hudi.gcp.bigquery.BigQuerySyncTool",
+  "hoodie.gcp.bigquery.sync.project_id" -> projectId,
+  "hoodie.gcp.bigquery.sync.dataset_name" -> dataset,
+  "hoodie.gcp.bigquery.sync.dataset_location" -> "US",
+  "hoodie.gcp.bigquery.sync.table_name" -> tableName,
+  "hoodie.gcp.bigquery.sync.source_uri" -> s"$basePath/store=*",
+  "hoodie.gcp.bigquery.sync.source_uri_prefix" -> s"$basePath/",
+  "hoodie.gcp.bigquery.sync.partition_fields" -> "store",
+  "hoodie.gcp.bigquery.sync.use_bq_manifest_file" -> "true")
 
 df.write.format("hudi").options(writeOpts).mode(SaveMode.Overwrite).save(basePath)
 
 /*
------ Independent sync (CLI) -----
-# Using the Hudi sync tool (requires hudi-gcp-bundle):
-java -cp /path/to/hudi-gcp-bundle_2.12-1.0.2.jar:/path/to/spark-bigquery-connector.jar \
-  org.apache.hudi.gcp.bigquery.BigQuerySyncTool \
+---------- Independent sync ----------
+spark-submit --class org.apache.hudi.gcp.bigquery.BigQuerySyncTool \
+  --jars hudi-spark3.5-bundle_2.12-1.2.1.jar \
+  hudi-gcp-bundle-1.2.1.jar \
   --project-id my-gcp-project \
   --dataset-name hudi_bigquery_db \
   --dataset-location US \
   --table sales_hudi \
-  --source-uri gs://my-gcs-bucket/sales_hudi_bq/ \
+  --source-uri gs://my-gcs-bucket/sales_hudi_bq/store=* \
+  --source-uri-prefix gs://my-gcs-bucket/sales_hudi_bq/ \
   --base-path gs://my-gcs-bucket/sales_hudi_bq \
-  --partitioned-by ss_store_sk_part \
+  --partitioned-by store \
   --use-bq-manifest-file
-*/
-// After sync: query from BigQuery as an external table (snapshot on CoW/RO MOR).
 
-// READ (BigQuery):
-/*
-Option A — bq CLI:
-  bq query --use_legacy_sql=false \
-    "SELECT COUNT(*) AS rows FROM `${projectId}.${dataset}.${tableName}`"
-
-Option B — Spark (BigQuery connector):
-  Launch spark-shell with:
-   --jars gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.36.3.jar
-  Then:
-   val bq = spark.read.format("bigquery")
-     .option("table", s"$projectId.$dataset.$tableName").load()
-   bq.selectExpr("count(*) as rows").show(false)
+---------- Query ----------
+bq query --use_legacy_sql=false \
+  'SELECT count(*) AS rows FROM `my-gcp-project.hudi_bigquery_db.sales_hudi`'
 */

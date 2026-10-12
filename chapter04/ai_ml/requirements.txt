@@ -1,0 +1,5 @@
+hudi==0.5.0
+ray[data]==2.59.0
+daft[hudi]==0.7.26
+pyarrow
+pandas
