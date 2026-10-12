@@ -68,6 +68,33 @@
     {
       "name": "dt",
       "type": "string"
+    },
+    {
+      "name": "line_version",
+      "type": "long"
+    },
+    {
+      "name": "line_opened_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "gross_to_date",
+      "type": "double"
+    },
+    {
+      "name": "refund_to_date",
+      "type": "double"
+    },
+    {
+      "name": "fee_to_date",
+      "type": "double"
+    },
+    {
+      "name": "chargeback_to_date",
+      "type": "double"
     }
   ]
 }
