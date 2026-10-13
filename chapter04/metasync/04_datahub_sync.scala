@@ -1,75 +1,42 @@
 /*
- * 04_datahub_sync.scala — Sync a Hudi table's metadata to DataHub (governance/lineage)
+ * 04_datahub_sync.scala: publish a Hudi table's metadata to DataHub.
  *
- * Prereqs (OSS quickstart)
- * - Install DataHub locally: `pip install acryl-datahub && datahub quickstart`
- *   This starts GMS/Frontend/Kafka containers and seeds a demo instance.
- * - Get your GMS host/port (defaults: http://localhost:8080)
- * Docs: https://hudi.apache.org/docs/syncing_datahub/
+ * Hudi 1.2.1, Spark 3.5. Docs: https://hudi.apache.org/docs/syncing_datahub/
+ * Not run by the authors (needs a DataHub instance). Config keys checked against the 1.2.1 source.
+ *
+ * What the sync publishes: the dataset with its schema, table and partition properties, the
+ * last commit time, browse paths and containers, and optionally a domain. Ownership and lineage
+ * are not derived from the write; they come from other DataHub ingestion or explicit emitters.
+ *
+ * Prerequisites
+ * - DataHub running locally: pip install acryl-datahub && datahub docker quickstart
+ *   (GMS on http://localhost:8080, UI on http://localhost:9002)
+ * - The Hudi DataHub sync bundle next to the Spark bundle:
+ *     spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.1,org.apache.hudi:hudi-datahub-sync-bundle:1.2.1 \
+ *       <the --conf settings from chapter04/README.md>
  */
 
-/// spark-shell launcher:
-// spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-//  --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
-//  --conf spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension \
-//  --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog
+import org.apache.spark.sql.SaveMode
 
-val inputPath = "/tmp/input_data/"
+val inputPath = "/tmp/input_data"
 val basePath  = "file:///tmp/sales_hudi_datahub"
 val dbName    = "hudi_db"
 val tableName = "sales_hudi"
 
-val raw = spark.read.format("parquet").load(inputPath)
-val df  = raw.drop(raw.columns.filter(_.startsWith("_hoodie_")):_*)
-
-import org.apache.spark.sql.SaveMode
+val raw = spark.read.parquet(inputPath)
+val df  = raw.drop(raw.columns.filter(_.startsWith("_hoodie_")): _*)
 
 val writeOpts = Map(
   "hoodie.table.name" -> tableName,
-  "hoodie.datasource.write.table.type" -> "COPY_ON_WRITE",
-  "hoodie.datasource.write.recordkey.field" -> "ss_item_sk",
-  "hoodie.datasource.write.keygenerator.class" -> "org.apache.hudi.keygen.NonpartitionedKeyGenerator",
+  "hoodie.datasource.write.recordkey.field" -> "ss_item_sk,ss_ticket_number",
   "hoodie.datasource.write.operation" -> "bulk_insert",
-  "hoodie.bulkinsert.shuffle.parallelism" -> "50",
-
-  // Enable meta sync to DataHub via sync class
+  // DataHub sync after each commit
   "hoodie.datasource.meta.sync.enable" -> "true",
-  "hoodie.datasource.meta.sync.classes" -> "org.apache.hudi.sync.datahub.DataHubSyncTool",
-  // REST endpoint for GMS (property name varies slightly across versions; both forms shown)
-  "hoodie.datahub.sync.server" -> "http://localhost:8080",
-  // If your version uses host/port keys, uncomment these:
-  // "hoodie.datahub.sync.rest.server.host" -> "localhost",
-  // "hoodie.datahub.sync.rest.server.port" -> "8080",
-
-  // Useful to populate names in DataHub’s dataset entity
+  "hoodie.meta.sync.client.tool.class" -> "org.apache.hudi.sync.datahub.DataHubSyncTool",
+  "hoodie.meta.sync.datahub.emitter.server" -> "http://localhost:8080",
   "hoodie.datasource.hive_sync.database" -> dbName,
-  "hoodie.datasource.hive_sync.table"    -> tableName
-)
+  "hoodie.datasource.hive_sync.table" -> tableName)
 
 df.write.format("hudi").options(writeOpts).mode(SaveMode.Overwrite).save(basePath)
 
-/*
------ Independent sync (CLI) -----
-# Using the Hudi sync tool script:
-sh /path/to/run_sync_tool.sh \
-  --sync-mode datahub \
-  --base-path file:///tmp/sales_hudi_datahub \
-  --database hudi_db \
-  --table sales_hudi \
-  --datahub-server-url http://localhost:8080
-*/
-
-/*
-DataHub emits dataset metadata (schema, storage path, last sync). Verify in UI:
-http://localhost:9002 → Search "sales_hudi"
-*/
-// DataHub sync support landed in Hudi 0.11 and remains available in 1.0.x.
-
-// READ (Spark — path or register temp view)
-val t = spark.read.format("hudi").load(basePath)
-t.createOrReplaceTempView("sales_hudi_local")
-spark.sql("SELECT ss_item_sk, SUM(ss_net_paid) AS net_paid FROM sales_hudi_local GROUP BY ss_item_sk LIMIT 10").show(false)
-
-/*
-Open DataHub UI (http://localhost:9002) and search "sales_hudi" to see schema + last sync.
-*/
+// Then open http://localhost:9002 and search for "sales_hudi".

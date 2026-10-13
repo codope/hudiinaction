@@ -1,0 +1,9 @@
+[package]
+name = "hudi_datafusion_example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hudi = { version = "0.5.0", features = ["datafusion"] }
+datafusion = "54"
+tokio = { version = "1", features = ["full"] }

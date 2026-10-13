@@ -1,183 +1,163 @@
-# Chapter 4: Querying Hudi Tables & Catalog Syncing
+# Chapter 4: Querying Hudi tables
 
-This chapter covers various querying capabilities with Hudi tables and demonstrates how to sync Hudi metadata to different catalogs and query engines. We use the TPC-DS store_sales dataset for all examples.
+Companion code for the chapter's examples, on a sample of the TPC-DS `store_sales` table
+(2,880,404 rows, `chapter04/input_data`).
 
-## 🚀 What You'll Learn
+| File | What it covers |
+|---|---|
+| `hudi_querying_tutorial.scala` | Create the Hudi table; query it with the Spark DataSource API and Structured Streaming |
+| `spark_sql_queries.sql` | The same table from `spark-sql`: snapshot query, `CALL show_commits`, `hudi_table_changes` |
+| `query_types.scala` | Snapshot, read-optimized, time travel, incremental (`latest_state`), and CDC queries |
+| `metasync/` | Hive Metastore, AWS Glue, BigQuery, and DataHub sync |
+| `ai_ml/` | Reading without Spark: hudi-rs (Python), DataFusion (Rust), Ray Data, Daft |
 
-This chapter demonstrates:
+## Requirements
 
-### **Part 1: Querying Hudi Tables**
-- **Creating a Hudi table**: Initial loading of data using bulk_insert
-- **Querying via Spark DataSource**: Reading Hudi table using spark.read.format("hudi")
-- **Querying via Spark SQL**: Reading Hudi table using SQL queries
-- **Querying via Spark Structured Streaming**: Reading a Hudi table using spark streaming
+- Java 11
+- Apache Spark 3.5.x (tested with 3.5.6, pre-built for Hadoop 3)
+- Apache Hudi 1.2.1 (pulled by `--packages`)
+- macOS or Linux. On Windows, run everything inside WSL2.
 
-### **Part 2: Catalog Syncing & Multi-Engine Queries**
-- **Hive Metastore (HMS) Sync**: Sync to Hive and query via HiveQL
-- **AWS Glue Sync**: Sync to Glue Data Catalog and query via Athena
-- **BigQuery Sync**: Sync to BigQuery and query via bq CLI or Spark BigQuery connector
-- **DataHub Sync**: Sync metadata to DataHub for governance and lineage
-- **XTable Sync**: Expose Hudi tables to Iceberg/Delta readers
+## Record key
 
-## 📊 Sample Dataset
+No single `store_sales` column is unique: `ss_item_sk` has only 18,000 distinct values. The
+table's primary key is `(ss_item_sk, ss_ticket_number)`, so every example uses both fields as the
+Hudi record key. Hudi stores the composite key in `_hoodie_record_key` as
+`ss_item_sk:406,ss_ticket_number:188525`.
 
-This chapter uses a sample of the store-sales dataset from tpc-ds benchmarking containing approximately 2.8M records. The data includes:
+## Setup
 
-- **ss_item_sk** (unique identifier)
-- **Item information** 
-- **Customer information**
-- **Address related info**
-- **Price related stats**
-- **Profit related stats**
-
-## 🛠️ Setup Instructions
-
-### 1. Download Sample Data
-The input data is located in `chapter04/input_data/` directory (5 parquet files with ~2.8M records).
-
-### 2. Update Configuration
-Edit the Scala files to update paths according to your environment:
-```scala
-// Update in hudi_querying_tutorial.scala and metasync/*.scala
-val inputPath = "/tmp/input_data/"  // Or path to chapter04/input_data/
-val basePath  = "/tmp/hudi_demo_tbl"  // Or your preferred location
-```
-
-### 3. Start Spark Shell
 ```bash
-spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-            --driver-memory 4g --executor-memory 4g \
-            --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
-            --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
-            --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
-            --conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
+cp -r chapter04/input_data /tmp/input_data
+rm -rf /tmp/hudi_demo_tbl /tmp/hudi/demo /tmp/hudi_streaming_hudi   # start clean
 ```
 
-### 4. Run the Tutorial
+Start spark-shell:
 
-**Part 1 - Basic Querying:**
-Execute code from `hudi_querying_tutorial.scala` interactively by copying sections into spark-shell.
+```bash
+spark-shell --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.1 \
+  --driver-memory 4g --executor-memory 4g \
+  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+  --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+  --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
+  --conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
+```
 
-**Part 2 - Catalog Syncing:**
-Choose the catalog sync script(s) relevant to your use case from the `metasync/` directory and follow the setup instructions in each script.
+`spark-sql` takes the same options.
 
-## 📝 Tutorial Steps
+## Run
 
-### Part 1: Basic Querying (`hudi_querying_tutorial.scala`)
+In spark-shell, run the files with `:paste` (paste mode is needed because continuation lines
+start with a dot):
 
-#### Section 1: Data Loading with bulk_insert
-- Load store_sales dataset from input_data
-- Bulk import entire dataset into Hudi table (2.8M records → 50 data files)
+```
+scala> :paste /path/to/hudiinaction/chapter04/hudi_querying_tutorial.scala
+scala> query.stop()        // after the first micro-batch has printed
+scala> :paste /path/to/hudiinaction/chapter04/query_types.scala
+```
 
-#### Section 2: Querying via Spark DataSource
-- Query the Hudi table using `spark.read.format("hudi")`
-- Register as temp table and run SQL queries
-- View execution stats in Spark UI
+`query_types.scala` uses `df` and `writeOpts` from the tutorial, so run both in the same session.
+For Spark SQL:
 
-#### Section 3: Querying via Spark SQL
-- Launch spark-sql session
-- Create external table mapping to Hudi location
-- Query using pure SQL syntax
+```bash
+spark-sql <same options as above> -f chapter04/spark_sql_queries.sql
+```
 
-#### Section 4: Querying via Spark Structured Streaming
-- Set up streaming query with `readStream`
-- Process micro-batches using `foreachBatch`
-- Configure checkpoints and triggers
+## Expected results
 
-### Part 2: Catalog Syncing & Multi-Engine Queries (`metasync/*.scala`)
+From a run on Spark 3.5.6, Java 11, Hudi 1.2.1, starting from empty paths:
 
-#### 01_hms_sync.scala - Hive Metastore Sync
-- **Setup**: Docker-based HMS (Thrift @ 9083) or existing Hive setup
-- **Write-time sync**: Configure `hoodie.datasource.hive_sync.mode=hms`
-- **CLI sync**: Use `run_sync_tool.sh` for independent syncing
-- **Query**: Via Spark with Hive catalog or Beeline
+| Step | Result |
+|---|---|
+| Table after `bulk_insert` | 2,880,404 rows, table version 9, `column_stats` and `files` metadata partitions |
+| `count(*) where ss_store_sk = 7` (DataSource and Spark SQL) | 458,194 |
+| Structured Streaming, batch 0 | `Total record count 2880404` |
+| Time travel `as.of.instant` = load commit | 2,880,404 rows, pre-upsert values |
+| Upsert of 50 random rows | `total_update_records_written` = 50 |
+| Incremental read, begin = load completion time | 50 rows |
+| `hudi_table_changes(..., 'latest_state', <load completion time>)` | 50 rows |
+| CDC over the whole timeline (`'earliest'`) | `i` 2,880,404, `u` 30, `d` 5 |
+| CDC DataFrame read, begin = load completion time | `u` 30, `d` 5 |
 
-#### 02_glue_sync.scala - AWS Glue Data Catalog Sync
-- **Setup**: EMR or Spark with AWS credentials, S3 bucket
-- **Write-time sync**: Configure `hoodie.datasource.hive_sync.mode=glue`
-- **CLI sync**: Use `AwsGlueCatalogSyncTool` or run_sync_tool.sh
-- **Query**: Via AWS Athena (SQL or aws-cli)
+Two Hudi 1.x details the examples rely on:
 
-#### 03_bigquery_sync.scala - Google BigQuery Sync
-- **Setup**: GCP project, GCS bucket, service account credentials
-- **Write-time sync**: Configure `hoodie.datasource.meta.sync.classes=BigQuerySyncTool`
-- **Partitioning**: Example with ss_store_sk_part partition field
-- **CLI sync**: Use java -cp with hudi-gcp-bundle
-- **Query**: Via bq CLI or Spark BigQuery connector
+- `hoodie.datasource.read.begin.instanttime` is a **completion time** and is exclusive. Use the
+  `state_transition_time` column of `CALL show_commits`, not `_hoodie_commit_time`. Starting
+  from a commit's `_hoodie_commit_time` re-reads that commit.
+- An upsert writes whole rows. A DataFrame with only some of the table's columns fails with
+  `MissingSchemaFieldException`.
 
-#### 04_datahub_sync.scala - DataHub Metadata Sync
-- **Setup**: Install DataHub OSS (`datahub quickstart`)
-- **Write-time sync**: Configure `hoodie.datasource.meta.sync.classes=DataHubSyncTool`
-- **CLI sync**: Use run_sync_tool.sh with --sync-mode datahub
-- **Verify**: DataHub UI @ http://localhost:9002
+Known issues in Hudi 1.2.1, worked around in `query_types.scala`:
 
-#### 05_xtable_sync.scala - XTable (Iceberg/Delta) Sync
-- **Setup**: Add XTable bundle to classpath
-- **Write-time sync**: Configure `hoodie.datasource.meta.sync.classes=XTableSyncTool`
-- **Target formats**: iceberg, delta (comma-separated)
-- **CLI sync**: Use XTable utilities JAR independently
-- **Query**: Via Iceberg/Delta readers on Spark
+- In CDC `before`/`after` JSON images, DECIMAL values are written as `{"zero":false}`. The CDC
+  example changes the INT column `ss_quantity` for that reason.
+- The DataFrame CDC reader returns no rows when the begin time is `earliest`.
+  `hudi_table_changes(..., 'cdc', 'earliest')` works.
 
-## 🎯 Expected Outcomes
+## Catalog sync (`metasync/`)
 
-After completing this chapter, you'll have:
+| Script | Bundle(s) | Status |
+|---|---|---|
+| `01_hms_sync.scala` | `hudi-spark3.5-bundle_2.12` | Run: write-time sync and standalone `HiveSyncTool` against a local Hive 2.3.9 metastore; both tables read back 2,880,404 rows |
+| `02_glue_sync.scala` | + `hudi-aws-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs AWS) |
+| `03_bigquery_sync.scala` | + `hudi-gcp-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs GCP) |
+| `04_datahub_sync.scala` | + `hudi-datahub-sync-bundle` | Keys checked against Hudi 1.2.1 source; not run (needs DataHub) |
 
-### Part 1: Basic Querying
-- A functioning Hudi table with 2.8M store_sales records
-- Experience querying via Spark DataSource, Spark SQL, and Structured Streaming
-- Understanding of different read patterns and use cases
+Athena reads Hudi tables written by Hudi 0.14 and 0.15 (table version 6). `02_glue_sync.scala`
+writes table version 6 for that reason.
 
-### Part 2: Catalog Syncing
-- Knowledge of how to sync Hudi metadata to various catalogs
-- Ability to query Hudi tables from multiple query engines:
-  - **Hive/HiveQL** (via HMS)
-  - **AWS Athena** (via Glue)
-  - **Google BigQuery** (via BigQuery connector)
-  - **Iceberg/Delta readers** (via XTable)
-- Understanding of metadata governance with DataHub
-- Experience with both write-time and independent CLI-based syncing
+Apache XTable is covered in Chapter 9. Its latest release (0.4.0-incubating) is built on Hudi
+0.14, so it reads table-version-6 tables only.
 
-## 📁 Files in This Chapter
+## Reading without Spark (`ai_ml/`)
 
-### Main Tutorial
-- **`hudi_querying_tutorial.scala`** - Complete tutorial demonstrating Spark DataSource, Spark SQL, and Structured Streaming queries
+hudi-rs 0.5.0 (Python package `hudi`) reads Hudi 1.x tables (table versions 8 and 9):
 
-### Catalog Syncing Scripts (metasync/)
-- **`01_hms_sync.scala`** - Hive Metastore sync with Docker setup instructions
-- **`02_glue_sync.scala`** - AWS Glue Data Catalog sync with Athena queries
-- **`03_bigquery_sync.scala`** - Google BigQuery sync with partitioned table example
-- **`04_datahub_sync.scala`** - DataHub metadata sync for governance/lineage
-- **`05_xtable_sync.scala`** - XTable sync to expose as Iceberg/Delta tables
+```bash
+pip install -r chapter04/ai_ml/requirements.txt
+python chapter04/ai_ml/ai_ml_engines.py <commit_time from CALL show_commits>
+# snapshot rows: 2880404, and 2880404 rows as of the load commit
+```
 
-### Data
-- **`input_data/`** - Sample TPC-DS store_sales dataset (5 parquet files, ~2.8M records)
+The Rust example queries the table through Apache DataFusion:
 
-### Documentation
-- **`README.md`** - This chapter guide
+```bash
+cd chapter04/ai_ml/rust_datafusion && cargo run --release
+```
 
-## 📚 Further Reading
+### Ray Data and Daft
 
-### General Hudi Documentation
-- [Apache Hudi Documentation](https://hudi.apache.org/)
-- [Hudi Configuration Guide](https://hudi.apache.org/docs/configurations/)
-- [Spark-Hudi Integration](https://hudi.apache.org/docs/quick-start-guide/)
-- [SQL Queries on Different Engines](https://hudi.apache.org/docs/sql_queries)
+Neither engine reads this chapter's table (written by Hudi 1.2.1, table version 9) yet. The
+examples run on small copies they can read (checked October 2026).
 
-### Catalog Syncing Documentation
-- [Hive Metastore Sync](https://hudi.apache.org/docs/syncing_metastore/)
-- [AWS Glue Data Catalog Sync](https://hudi.apache.org/docs/syncing_aws_glue_data_catalog/)
-- [Google BigQuery Sync](https://hudi.apache.org/docs/gcp_bigquery/)
-- [DataHub Sync](https://hudi.apache.org/docs/syncing_datahub/)
-- [XTable (Multi-Format) Sync](https://hudi.apache.org/docs/syncing_xtable/)
-- [Apache XTable Project](https://xtable.apache.org/)
+**Ray Data** (`ray_data_example.py`, `pip install -r chapter04/ai_ml/requirements-ray.txt`):
+- Ray 2.59's `read_hudi` is an alpha API that depends on hudi-rs 0.4. That version reads table
+  version 6 only, and reads Merge-on-Read tables in read-optimized mode.
+- hudi-rs 0.4 also finds no files in a non-partitioned table written by Hudi 1.2.1.
+- `make_ray_table.scala` therefore writes a 10,000-row copy with table version 6, partitioned by
+  `ss_store_sk`, and upserts 20 rows.
+- Result: the store-7 snapshot read returns 5,113 rows; the incremental read between the two
+  commits returns the 20 upserted rows.
 
-## 💡 Tips & Best Practices
+```
+scala> :paste chapter04/ai_ml/make_ray_table.scala     # prints the two commit times
+$ python chapter04/ai_ml/ray_data_example.py <first commit time> <second commit time>
+```
 
-1. **Choose the right sync method**: Use write-time sync for automatic updates or CLI sync for scheduled/manual updates
-2. **Start with HMS**: If you're new to catalog syncing, start with Hive Metastore (easiest setup with Docker)
-3. **Cloud-specific considerations**:
-   - AWS: Use Glue for seamless Athena integration
-   - GCP: Use BigQuery sync for cost-effective querying of GCS data
-   - Multi-cloud: Consider XTable for maximum flexibility
-4. **Governance**: Use DataHub to track lineage, schema evolution, and data quality
-5. **Performance**: For large tables, enable partition pruning in your queries and catalogs
+**Daft** (`daft_example.py`, `pip install -r chapter04/ai_ml/requirements-daft.txt`):
+- Daft 0.7.26 reads Copy-on-Write tables written by Hudi 0.12 to 0.15.
+- It fails on any table written by Hudi 1.x, even at table version 6, because it requires the
+  `hoodie.table.keygenerator.class` property, which Hudi 1.x does not write.
+- `make_daft_table_hudi015.scala` writes a small table with the Hudi 0.15.0 Spark bundle
+  instead.
+- Daft cannot push down a filter on the partition column (`ss_store_sk`) by name, so the example
+  filters on `ss_quantity`. Result: 2,369 customer groups.
+
+## Further reading
+
+- [SQL queries on different engines](https://hudi.apache.org/docs/sql_queries)
+- [Hive Metastore sync](https://hudi.apache.org/docs/syncing_metastore/)
+- [AWS Glue Data Catalog sync](https://hudi.apache.org/docs/syncing_aws_glue_data_catalog/)
+- [Google BigQuery sync](https://hudi.apache.org/docs/gcp_bigquery/)
+- [DataHub sync](https://hudi.apache.org/docs/syncing_datahub/)
+- [hudi-rs](https://github.com/apache/hudi-rs)

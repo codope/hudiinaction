@@ -1,126 +1,96 @@
 /**
- * Apache Hudi tutorial on querying Hudi tables.
- * 
- * This script demonstrates different ways to read a Hudi table using spark.
- * 
- * Dataset: store_sales dataset from tpc-ds benchmarking 1GB dataset.
- * Format: parquet
+ * Chapter 4: creating the store_sales Hudi table and reading it with the Spark DataSource API
+ * and Spark Structured Streaming.
+ *
+ * Dataset: TPC-DS store_sales sample (2,880,404 rows) in chapter04/input_data.
+ * Record key: (ss_item_sk, ss_ticket_number), the store_sales primary key.
+ *
+ * Run inside spark-shell (see README.md for the launch command):
+ *   scala> :paste /path/to/hudiinaction/chapter04/hudi_querying_tutorial.scala
  */
 
-// ============================================================================
-// CONFIGURATION - Update these paths for your environment
-// ============================================================================
+import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.functions._
 
-// input data is stored in chapter04/input_data/ in hudiinaction github repo. Feel free to replace below line or
-// copy the contents of chapter04/input_data/ to /tmp/input_data/
-val inputPath = "/tmp/input_data/"
-
-// Launch spark-shell
-./bin/spark-shell --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
-  --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
-  --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
-  --conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
-
-// Required imports
-import org.apache.spark.sql.SaveMode._
-
-// The dataset for this chapter is store sales dataset from tpc-ds benchmark which is located at chapter04/input_data.
-// Please change to the path where the source data is saved
-val inputPath = "/tmp/input_data/"
-
-// Please change to the path where the Hudi table will be created
+// Path to chapter04/input_data in your clone of the repository.
+val inputPath = "/tmp/input_data"
+// Where the Hudi table is created. Must start empty.
 val basePath  = "/tmp/hudi_demo_tbl"
 
 // ============================================================================
-// SECTION 1: Creating Hudi table
+// SECTION 1: Create the Hudi table with bulk_insert
 // ============================================================================
 
-/**
- * Load the store_sales dataset from the input (located at chapter04/input_data)
- */
-val df = spark.read.format("parquet").load(inputPath)
+// The sample Parquet files were exported from an older Hudi table and still carry
+// _hoodie_* metadata columns, so drop them before writing.
+val raw = spark.read.parquet(inputPath)
+val df  = raw.drop(raw.columns.filter(_.startsWith("_hoodie_")): _*)
 
-/**
- * Create a new table with bulk insert operation.
- * Note: We are explicitly setting shuffle parallelism to 50 so that 50 data files will be created.
- */
-df.write.format("hudi").
-  option("hoodie.datasource.write.recordkey.field","ss_item_sk").
-  option("hoodie.table.name","hudi_demo_tbl").
-  option("hoodie.datasource.write.operation","bulk_insert").
-  option("hoodie.bulkinsert.shuffle.parallelism","50").
-  save(basePath)
+// No single store_sales column is unique: ss_item_sk has only 18,000 distinct values.
+// The primary key is (ss_item_sk, ss_ticket_number), so both fields form the record key.
+val writeOpts = Map(
+  "hoodie.table.name" -> "hudi_demo_tbl",
+  "hoodie.datasource.write.recordkey.field" -> "ss_item_sk,ss_ticket_number",
+  "hoodie.datasource.write.operation" -> "bulk_insert")
+
+df.write.format("hudi").options(writeOpts).mode(SaveMode.Overwrite).save(basePath)
+
+// Hudi stores a composite key as field:value pairs, for example
+// ss_item_sk:406,ss_ticket_number:188525
+spark.read.format("hudi").load(basePath).select("_hoodie_record_key").show(1, false)
 
 // ============================================================================
-// SECTION 2: Querying tables via spark datasource.
+// SECTION 2: Query through the Spark DataSource API
 // ============================================================================
 
-spark.read.format(“hudi”).load(basePath).registerTempTable(“hudi_tbl”)
+spark.read.format("hudi").load(basePath).createOrReplaceTempView("hudi_tbl")
+spark.sql("select count(*) from hudi_tbl").show(false)
+// +--------+
+// |count(1)|
+// +--------+
+// |2880404 |
+// +--------+
+
 spark.sql("select count(*) from hudi_tbl where ss_store_sk = 7").show(false)
+// +--------+
+// |count(1)|
+// +--------+
+// |458194  |
+// +--------+
 
-Output:
-//  +--------+
-//  |count(1)|
-//  +--------+
-//  |458194  |
-//  +--------+
-
-// After you run the query, open Spark UI → SQL tab and click the query to see the DAG visualization for query execution stats.
+// Open the Spark UI (http://localhost:4040), SQL / DataFrame tab, to see the scan statistics.
 
 // ============================================================================
-// SECTION 3: Querying hudi table via Spark SQL
+// SECTION 3: Query through Spark Structured Streaming
 // ============================================================================
-
-// lets launch spark-sql session
-
-./bin/spark-sql --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
---conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
---conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
---conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
---conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
-
-// Lets drop the table if exists already
-DROP TABLE IF EXISTS hudi_tbl;
-
-// lets create an external table mapping to the hudi table location
-CREATE TABLE hudi_tbl USING hudi LOCATION '/tmp/hudi_demo_tbl';
-
-// Now, we are ready to query the hudi table via Spark SQL
-SELECT count(*) FROM hudi_tbl where ss_store_sk = 7;
-
-Output:
-// 458194
-// Time taken: 7.613 seconds, Fetched 1 row(s)
-
-// ============================================================================
-// SECTION 4: Querying hudi table via Spark Structured Streaming
-// ============================================================================
-
-// Launch spark-shell
-./bin/spark-shell --driver-memory 4g --executor-memory 4g --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.0.2 \
-  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
---conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
---conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
---conf 'spark.kryo.registrator=org.apache.spark.HoodieSparkKryoRegistrar'
-
-// lets execute a streaming query to consume data from our hudi table using spark structured streaming
 
 import org.apache.spark.sql.streaming.Trigger
 import java.time.LocalDateTime
-val sourceBasePath = "/tmp/hudi_demo_tbl"
-val df = spark.readStream.format("hudi").load(sourceBasePath)
-val query = df.writeStream.foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) => {
-  batchDF.persist()
-  println(LocalDateTime.now() + " start consuming batch " + batchId)
-  println("Total record count " + batchDF.count())
-  println(LocalDateTime.now() + " finish")
-}
-}.option("checkpointLocation", "/tmp/hudi_streaming_hudi/checkpoint/").
-  trigger(Trigger.ProcessingTime("2 minutes")).start()
 
-Output:
-// 25/09/01 18:50:41 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
-// 2025-09-01T18:50:41.498 start consuming batch 0
-// Total record count 2880404
-// 2025-09-01T18:51:01.645 finish
+val sourceBasePath = "/tmp/hudi_demo_tbl"
+// With no start offset set, the stream starts from the earliest commit on the timeline
+// (hoodie.datasource.streaming.startOffset defaults to earliest), so batch 0 is the whole table.
+val streamDF = spark.readStream
+  .format("hudi")
+  .load(sourceBasePath)
+
+val query = streamDF.writeStream
+  .foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) =>
+    batchDF.persist()
+    println(LocalDateTime.now() + " start consuming batch " + batchId)
+    println("Total record count " + batchDF.count())
+    batchDF.unpersist()
+    println(LocalDateTime.now() + " finish")
+  }
+  .option("checkpointLocation", "/tmp/hudi_streaming_hudi/checkpoint/")
+  .trigger(Trigger.ProcessingTime("2 minutes"))
+  .start()
+
+// Expected output for the first micro-batch:
+//   2026-10-12T15:16:44.870 start consuming batch 0
+//   Total record count 2880404
+//   2026-10-12T15:16:50.752 finish
+//
+// The checkpoint directory records which commits the query has consumed; restarting with the
+// same directory resumes after the last processed commit. Stop the stream with:
+//   query.stop()

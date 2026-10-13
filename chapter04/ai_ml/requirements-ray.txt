@@ -1,0 +1,4 @@
+ray[data]==2.59.0
+hudi==0.4.0
+pyarrow
+pandas
