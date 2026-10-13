@@ -9,7 +9,7 @@ Companion code for the chapter's examples, on a sample of the TPC-DS `store_sale
 | `spark_sql_queries.sql` | The same table from `spark-sql`: snapshot query, `CALL show_commits`, `hudi_table_changes` |
 | `query_types.scala` | Snapshot, read-optimized, time travel, incremental (`latest_state`), and CDC queries |
 | `metasync/` | Hive Metastore, AWS Glue, BigQuery, and DataHub sync |
-| `ai_ml/` | Reading the table without Spark: hudi-rs from Python, and DataFusion from Rust |
+| `ai_ml/` | Reading without Spark: hudi-rs (Python), DataFusion (Rust), Ray Data, Daft |
 
 ## Requirements
 
@@ -125,14 +125,31 @@ The Rust example queries the table through Apache DataFusion:
 cd chapter04/ai_ml/rust_datafusion && cargo run --release
 ```
 
-Daft and Ray Data cannot read tables written by Hudi 1.2.1 yet (checked October 2026):
+### Ray Data and Daft
 
-- Daft 0.7.26 reads Copy-on-Write tables with table version 5 or 6 only, and a table-version-6
-  table written by Hudi 1.2.1 fails on a missing `hoodie.table.keygenerator.class`.
-- Ray 2.59's `read_hudi` (alpha) calls a hudi-rs API that 0.5.0 removed. With hudi-rs 0.4.0 it
-  rejects table version 9 and finds no files in a table-version-6 table written by Hudi 1.2.1.
-  It also reads base files only (read-optimized for Merge-on-Read tables), and its incremental
-  mode returns whole changed file slices.
+Neither engine reads this chapter's table (written by Hudi 1.2.1, table version 9) yet. The
+examples run on small copies they can read (checked October 2026).
+
+**Ray Data** (`ray_data_example.py`, `pip install -r chapter04/ai_ml/requirements-ray.txt`):
+- Ray 2.59's `read_hudi` is an alpha API that depends on hudi-rs 0.4. That version reads table
+  version 6 only, and reads Merge-on-Read tables in read-optimized mode.
+- hudi-rs 0.4 also finds no files in a non-partitioned table written by Hudi 1.2.1.
+- `make_ray_table.scala` therefore writes a 10,000-row copy with table version 6, partitioned by
+  `ss_store_sk`, and upserts 20 rows.
+- Result: the store-7 snapshot read returns 5,113 rows; the incremental read between the two
+  commits returns the 20 upserted rows.
+
+```
+scala> :paste chapter04/ai_ml/make_ray_table.scala     # prints the two commit times
+$ python chapter04/ai_ml/ray_data_example.py <first commit time> <second commit time>
+```
+
+**Daft** (`daft_example.py`, `pip install -r chapter04/ai_ml/requirements-daft.txt`):
+- Daft 0.7.26 reads Copy-on-Write tables written by Hudi 0.12 to 0.15.
+- It fails on any table written by Hudi 1.x, even at table version 6, because it requires the
+  `hoodie.table.keygenerator.class` property, which Hudi 1.x does not write.
+- `make_daft_table_hudi015.scala` writes a small table with the Hudi 0.15.0 Spark bundle
+  instead.
 
 ## Further reading
 

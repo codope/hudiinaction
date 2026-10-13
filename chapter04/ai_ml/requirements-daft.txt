@@ -1,0 +1,2 @@
+daft[hudi]==0.7.26
+sortedcontainers
