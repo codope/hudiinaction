@@ -150,6 +150,8 @@ $ python chapter04/ai_ml/ray_data_example.py <first commit time> <second commit 
   `hoodie.table.keygenerator.class` property, which Hudi 1.x does not write.
 - `make_daft_table_hudi015.scala` writes a small table with the Hudi 0.15.0 Spark bundle
   instead.
+- Daft cannot push down a filter on the partition column (`ss_store_sk`) by name, so the example
+  filters on `ss_quantity`. Result: 2,369 customer groups.
 
 ## Further reading
 
