@@ -4,7 +4,7 @@ set -euo pipefail
 # Launches spark-shell with the Hudi bundle and the four settings every Hudi-on-Spark
 # session needs. Override HUDI_VERSION or SPARK_BUNDLE to test another combination.
 
-HUDI_VERSION="${HUDI_VERSION:-1.2.0}"
+HUDI_VERSION="${HUDI_VERSION:-1.2.1}"
 SPARK_BUNDLE="${SPARK_BUNDLE:-hudi-spark3.5-bundle_2.12}"
 
 spark-shell \

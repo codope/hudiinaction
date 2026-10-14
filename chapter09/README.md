@@ -1,96 +1,193 @@
 # Chapter 9: Advanced Lakehouse Capabilities
 
-Chapter 9 is a survey of the capabilities a production lakehouse platform needs: indexing
-scope, record merge modes, concurrency control, bootstrap, schema evolution, and reading the
-same data from other engines. Most of it is explained against configuration you have already
-met in earlier chapters, so the chapter carries a single runnable example, and that is what
-this directory holds.
+Chapter 9 is a survey of the capabilities a production lakehouse platform needs: semi-structured
+and unstructured column types, indexing and similarity search, merge modes, concurrency control,
+pre-commit validation and commit callbacks, schema evolution, table-version upgrade/downgrade, and
+connecting a table to catalogs and other engines. This directory holds a runnable example for nearly
+every one of those sections, verified against Hudi 1.2.1. A few examples back material that was
+cut from the chapter (bootstrap, encryption, session options, Flink Source V2); they are listed
+separately under **Examples not in the chapter**.
 
-The example is the bootstrap from *Running a bootstrap*: adopting a directory of existing
-Parquet as a Hudi table without rewriting it, using one mode for cold history and another for
-recent partitions.
+## Environment notes
 
-## What this shows
-
-- A bootstrap that references existing files in place rather than copying them
-- `BootstrapRegexModeSelector` applying `METADATA_ONLY` to partitions matching
-  `trip_date=202[0-4]-.*` and `FULL_RECORD` to everything newer
-- The skeleton files, the bootstrap index under `.hoodie/.aux/.bootstrap/`, and the source
-  files the metadata-only partitions still depend on, which is Figure 9.1 as real files
-- The Hudi metadata columns being available on rows whose data never moved
-
-## Prerequisites
-
-Either a local Spark, or Docker.
-
-- Apache Spark 3.5 with `spark-shell` on your `PATH`, and a JDK Spark 3.5 supports
-- Network access on first run, since the Hudi bundle is pulled with `--packages`
-- About 5 MB of free space under `/tmp`
-
-No Hudi installation is needed. The scripts pull `hudi-spark3.5-bundle_2.12:1.2.0`.
+- **Java 17** for every example (`export JAVA_HOME=$(/usr/libexec/java_home -v 17)` on macOS, or
+  point at any JDK 17 install). Hudi 1.2.1 and Spark 3.5/4.1 both run on it.
+- **No Docker needed** for any Spark example. `docker-compose.yml` remains as an optional container
+  for the bootstrap example only, if you would rather not install Spark locally.
+- **`--driver-class-path`, for the pre-commit validator examples only.** `SqlQueryEqualityPreCommitValidator`
+  and friends run on the JVM's common `ForkJoinPool`, whose worker threads default their context
+  classloader to the system classloader rather than the `MutableURLClassLoader` a plain
+  `spark-shell --packages ...` populates — so a `--packages`-only session throws
+  `ClassNotFoundException: HoodieCatalog` partway through. `scripts/spark_shell_with_hudi_driver_cp.sh`
+  puts the resolved Hudi bundle jar on `--driver-class-path` as well, which fixes it. Use it (via
+  `scripts/run_validators_driver_cp.sh`) instead of the plain launcher for the validator examples.
+- **The `parquet-variant` jar, for VARIANT upserts on Spark 4.1 with Hudi 1.2.0 only.** Hudi 1.2.1
+  shades it into `hudi-spark4.1-bundle_2.13`, so the launcher's extra jar is harmless there. On 1.2.0,
+  Hudi's upsert path reads existing
+  base files through `parquet-avro`'s `AvroReadSupport`, which reflectively loads
+  `org.apache.parquet.variant.VariantConverters$ParentConverter` once a `VARIANT` field is present —
+  a class neither Spark 4.1's own distribution nor `hudi-spark4.1-bundle_2.13` ships.
+  `scripts/spark4_shell_with_hudi_variant.sh` adds `org.apache.parquet:parquet-variant:1.16.0` via
+  `--packages` to fix it; every VARIANT example uses that launcher.
+- **The Parquet test jar, for `InMemoryKMS`.** The encryption recipe's mock KMS client,
+  `org.apache.parquet.crypto.keytools.mocks.InMemoryKMS`, ships only in
+  `parquet-hadoop-1.13.1-tests.jar` (the `tests` classifier), not in the main `parquet-hadoop` jar
+  Spark bundles and not resolvable through a plain `--packages group:artifact:version` coordinate.
+  `scripts/spark_shell_with_hudi_encryption.sh` downloads that test jar once (cached under
+  `~/spark-extra-jars/`) and adds it via `--jars`.
+- **`spark.sql.catalogImplementation=in-memory`**, wherever a SQL write would otherwise trigger
+  Hudi's default Hive-metastore sync against a metastore that does not exist (spark-shell defaults
+  the flag to `"hive"`, which turns on sync for *any* SQL write regardless of which catalog actually
+  created the table). Used by the schema-evolution and Polaris "working recipe" examples; noted per
+  example below where it mattered.
 
 ## Versions
 
 | Component | Version |
 |-----------|---------|
-| Apache Hudi | 1.2.0 |
-| Apache Spark | 3.5 |
-| Scala | 2.12 |
+| Apache Hudi | 1.2.1 |
+| Apache Spark (most examples) | 3.5.6, Scala 2.12 |
+| Apache Spark (VARIANT examples) | 4.1.3, Scala 2.13 |
+| Apache Flink (RLI / Source V2 examples) | 1.20.3 |
+| Apache Polaris (catalog examples) | 1.3.0-incubating server; **1.4.0** Spark client |
 
-Override with `HUDI_VERSION` or `SPARK_BUNDLE` if you are testing another combination. The output
-below was produced on Spark 3.5.6 with Amazon Corretto 17 on macOS (arm64).
+Override with `HUDI_VERSION`/`SPARK_BUNDLE` (per-launcher) if testing another combination.
+
+## Example set
+
+One row per example. "Prereqs" beyond the base Hudi bundle and a local Spark/Flink/Polaris install
+are called out explicitly; see **Environment notes** above for what each one is for.
+
+| Script | What it shows | Chapter section | Prereqs |
+|---|---|---|---|
+| `run_ai_types.sh` | `VECTOR` element types (`FLOAT`/`INT8`), `BLOB` INLINE/OUT_OF_LINE, `hudi_vector_search`/`_batch` (cosine/l2/dot_product) | *Storing semi-structured and unstructured data*, *Representing embeddings with VECTOR*, *Searching by similarity* | Spark 3.5 |
+| `run_blob_support_tickets.sh` | The chapter's exact reduced `support_tickets` BLOB snippet, verbatim | *Storing binary payloads with BLOB* | Spark 3.5 |
+| `run_variant_events.sh` | `VARIANT` column, COW + MOR, `parse_json`/`variant_get`, upsert-to-NULL known issue | *Holding semi-structured records with VARIANT* | Spark 4.1, `parquet-variant` jar |
+| `run_variant_pushdown_mor.sh` | The `pushVariantIntoScan` MOR read issue and its workaround (run after `run_variant_events.sh`) | *Holding semi-structured records with VARIANT* | Spark 4.1, `parquet-variant` jar |
+| `run_variant_inspect_parquet_schema.sh` | Inspects a COW base file's Parquet footer to see how a `VARIANT` column is physically laid out | *Holding semi-structured records with VARIANT* | Spark 4.1, `parquet-variant` jar |
+| `run_variant_lance.sh` | Confirms `VARIANT` on a Lance-backed table fails with `HoodieNotSupportedException` | *Choosing a base file format for AI workloads* | Spark 4.1, `parquet-variant` jar, Lance Spark bundle |
+| `run_lance.sh` | `hoodie.table.base.file.format=LANCE`, column/partition stats silently absent, vector search on Lance | *Choosing a base file format for AI workloads* | Spark 3.5, Lance Spark bundle |
+| `run_lance_merger_int8.sh` | Resolves the record-merger config key a Lance table needs (canonical vs. deprecated vs. nonexistent), confirms `INT8` vectors fail on Lance | *Choosing a base file format for AI workloads* | Spark 3.5, Lance Spark bundle |
+| `run_indexes.sh` | `CREATE`/`SHOW`/`DROP`/`REFRESH INDEX`, secondary/expression/bloom-filter indexes on a `rides` table | *Managing indexes with SQL*, *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5, `--driver-memory 2g` |
+| `run_index_pruning_evidence.sh` | Real scan-metric evidence (`numFiles`) that data skipping prunes files for a secondary-index and an expression-index predicate | *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5 |
+| `run_index_pruning_rides.sh` | The chapter's exact two pruning queries against the `rides`/`ride_id` naming | *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5, `--driver-memory 2g` |
+| `run_early_conflict.sh` | Datasource-API optimistic concurrency control (OCC) baseline, two writers in one JVM | *Detecting conflicts before the write finishes* | Spark 3.5 |
+| `run_early_conflict_lowlevel.sh` | The same conflict via the low-level `SparkRDDWriteClient` API, mirroring Hudi's own multi-writer test | *Detecting conflicts before the write finishes* | Spark 3.5 |
+| `run_early_conflict_lowlevel_detection.sh` | Early conflict detection aborting a doomed writer before it finishes, via markers | *Detecting conflicts before the write finishes* | Spark 3.5 |
+| `run_lock_audit.sh` | Confirms `StorageBasedLockProvider` does not support a local `file://` path (source + exact exception) | *Choosing where the lock lives* | Spark 3.5 |
+| `run_validators.sh` | Pre-commit SQL validators (pass/fail/`WARN_LOG`); plain launcher, hits the classloader bug | *Validating data before it commits* | Spark 3.5 |
+| `run_validators_driver_cp.sh` | Same validators, fixed via `--driver-class-path` | *Validating data before it commits* | Spark 3.5, `--driver-class-path` launcher |
+| `run_prewrite_validator.sh` | A custom `PreWriteValidator` defined live in spark-shell; documents why that always fails (`ReflectionUtils.getClass`/`Class.forName` cannot see a REPL-local class) | *Validating data before it commits* | Spark 3.5 |
+| `run_callbacks.sh` | Post-commit HTTP callback to a local receiver, capturing the real JSON payload | *Notifying downstream systems after a commit* | Spark 3.5, `scripts/http_callback_receiver.py` running |
+| `run_schema_on_read_control.sh` | Schema-on-read `ADD COLUMNS`/`ALTER COLUMN TYPE`/`RENAME COLUMN` on a scalar-only control table | *Enabling schema-on-read for everything else* | Spark 3.5, schema-evolution launcher |
+| `run_schema_ai_types.sh` | Same operations on a `VECTOR`+`BLOB` table with schema-on-read on: `ADD COLUMNS` fails on the pre-existing `VECTOR` column | *Enabling schema-on-read for everything else* | Spark 3.5, schema-evolution launcher |
+| `run_add_column_default_path.sh` / `run_add_column_default_path_inmemory.sh` | The *default* (schema-on-read off) `ADD COLUMNS` path succeeding on a `VECTOR`+`BLOB` table | *Adding columns without turning anything on* | Spark 3.5, schema-evolution launcher (first) or `catalogImplementation=in-memory` (second) |
+| `run_table_version.sh` | Table version 6/8/9, auto-upgrade, `upgrade_table`/`downgrade_table` procedures, the CLI equivalents | *Upgrading and downgrading the table format* | Spark 3.5 |
+| `run_flink_start_cluster.sh` / `run_flink_stop_cluster.sh` | Starts/stops a local Flink 1.20 standalone cluster | (infra for the two below) | Flink 1.20 — **not started by default; start/stop explicitly** |
+| `run_flink_rli_example.sh` | Record-level index from a Flink job, `index.type=RECORD_LEVEL_INDEX`/`GLOBAL_RECORD_LEVEL_INDEX`, streaming vs. batch runtime mode | *Enforcing key uniqueness inside a partition or across the table* | Flink 1.20 cluster running |
+| `run_polaris_start_server.sh` / `run_polaris_bootstrap.sh` | Starts a local Polaris server; creates the catalog, principal, role, namespace via REST | (infra for the Polaris examples) | Polaris 1.3.0-incubating server — **not started by default; start explicitly** |
+| `run_polaris_hudi_table_working.sh` | The **confirmed working** recipe: `CREATE TABLE`/`INSERT`/`SELECT` through Polaris (client 1.4.0 + `catalogImplementation=in-memory`) | *Registering tables through Apache Polaris* | Polaris server running, Polaris Spark client 1.4.0 |
+| `run_polaris_hudi_table_repro_bare_name.sh` | **Repro only.** The doc's bare unqualified `CREATE TABLE mydb.t` never reaches Polaris at all (client 1.3.0) | *Registering tables through Apache Polaris* | Polaris server running |
+| `run_polaris_hudi_table_repro_none_get.sh` | **Repro only.** A fully-qualified `polaris_catalog.mydb.t` reaches Polaris but crashes with `NoSuchElementException: None.get` (client 1.3.0 bug) | *Registering tables through Apache Polaris* | Polaris server running |
+| `run_polaris_hudi_table_repro_hivesync.sh` | **Repro only.** Client bumped to 1.4.0 fixes `CREATE TABLE`, but `INSERT` fails with `HoodieMetaSyncException` under the default `hive` catalog implementation | *Registering tables through Apache Polaris* | Polaris server running, client 1.4.0 |
+| `run_polaris_hudi_table_repro_hivesync_override.sh` | **Repro only.** Confirms a per-table `hoodie.datasource.hive_sync.enable=false` does *not* avoid the above | *Registering tables through Apache Polaris* | Polaris server running, client 1.4.0 |
 
 ## Layout
 
 ```
 chapter09/
-  docker-compose.yml           optional Spark container
+  docker-compose.yml                    optional Spark container (bootstrap example only)
   scripts/
-    spark_shell_with_hudi.sh   launches spark-shell with the Hudi bundle and settings
-    generate_source_data.sh    writes the pre-existing Parquet dataset
-    run_bootstrap.sh           runs the bootstrap
-    verify_bootstrap.sh        queries the bootstrapped table
-    show_layout.sh             prints the on-disk layout, source against table
-    run_all.sh                 the four above, in order
-    teardown.sh                removes the working directory
+    spark_shell_with_hudi.sh            base Spark 3.5 launcher
+    spark_shell_with_hudi_driver_cp.sh  + --driver-class-path (pre-commit validators)
+    spark_shell_with_hudi_encryption.sh + Parquet test jar + crypto confs
+    spark_shell_with_hudi_lance.sh      + Lance Spark bundle
+    spark_shell_with_hudi_schema_evolution.sh  + Hive metastore compat-check override
+    spark4_shell_with_hudi_variant.sh   Spark 4.1 launcher + parquet-variant jar
+    spark_shell_with_hudi_polaris.sh    Spark 3.5 + Polaris Spark catalog client
+    run_*.sh                            one per example, see the table above
+    generate_source_data.sh / verify_bootstrap.sh / show_layout.sh / teardown.sh   bootstrap-specific
+    http_callback_receiver.py           local HTTP receiver for run_callbacks.sh
   spark/
-    generate_source_data.scala
-    bootstrap_trips.scala
-    verify_bootstrap.scala
+    *.scala                             one source file per example, matching script names
+  flink/
+    ...                                 Flink job sources for the RLI / Source V2 examples
 ```
 
 ## Running it
 
-With Spark on your machine:
+The Spark 3.5 examples that need no external service (Flink, Polaris) run standalone:
 
 ```bash
 cd chapter09
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 ./scripts/run_all.sh
 ```
 
-Or step by step, which is easier to follow alongside the chapter:
+`run_all.sh` runs a sensible subset in order: bootstrap, then the AI/vector/BLOB types, indexing,
+encryption, concurrency, validators/callbacks, schema evolution, table version, and session
+options. It does **not** start Flink or Polaris, and does not run the Spark 4.1 VARIANT examples
+(different Spark major version) — run those separately:
 
 ```bash
-./scripts/generate_source_data.sh   # eight trips across five partitions, plain Parquet
-./scripts/run_bootstrap.sh          # the chapter's bootstrap job
-./scripts/verify_bootstrap.sh       # query the table, read its properties
-./scripts/show_layout.sh            # what each mode left on disk
+./scripts/run_variant_events.sh
+./scripts/run_variant_pushdown_mor.sh   # after run_variant_events.sh
+./scripts/run_variant_inspect_parquet_schema.sh
+./scripts/run_variant_lance.sh
 ```
 
-With Docker instead:
+Flink examples (start the cluster first, stop it when done):
 
 ```bash
-cd chapter09
-docker compose up -d
-docker compose exec spark bash
-export PATH="$PATH:/opt/spark/bin"
-./scripts/run_all.sh
+./scripts/run_flink_start_cluster.sh
+./scripts/run_flink_rli_example.sh
+./scripts/run_flink_source_v2.sh
+./scripts/run_flink_stop_cluster.sh
 ```
 
-Paths default to `/tmp/hudiinaction/chapter09`. Set `SOURCE_PATH` and `TABLE_PATH` to put
-them somewhere else.
+Polaris examples (start the server and bootstrap the catalog first):
 
-## What to look for
+```bash
+./scripts/run_polaris_start_server.sh
+./scripts/run_polaris_bootstrap.sh      # prints POLARIS_CLIENT_ID / POLARIS_CLIENT_SECRET to export
+export POLARIS_CLIENT_ID=... POLARIS_CLIENT_SECRET=...
+./scripts/run_polaris_hudi_table_working.sh
+```
+
+### Examples not in the chapter
+
+These back sections that were cut from the chapter. They still run, and are kept for reference.
+
+| Script | What it shows | Former section | Prereqs |
+|---|---|---|---|
+| `run_bootstrap.sh` (+ `generate_source_data.sh`, `verify_bootstrap.sh`, `show_layout.sh`) | Adopting existing Parquet as a Hudi table, `BootstrapRegexModeSelector`, metadata-only vs. full-record | *Running a bootstrap*, *Living with a bootstrapped table* | Spark 3.5 |
+| `run_encryption.sh` | Parquet modular encryption on COW (full round-trip) and MOR (base file encrypted, log file plaintext) | *Encrypting columns at rest* | Spark 3.5, Parquet test jar |
+| `run_encryption_control.sh` | Plain `df.write.parquet()` control test isolating the `InMemoryKMS` classpath gap from a Hudi-specific bug | *Encrypting columns at rest* | Spark 3.5, Parquet test jar |
+| `run_encryption_column_stats.sh` | Confirms the metadata table's `column_stats` partition stores plaintext min/max for an encrypted column | *Encrypting columns at rest* | Spark 3.5, Parquet test jar |
+| `run_session_options.sh` | `SET spark.hoodie.*`, the chapter's exact `trips_by_city` snippet (and the column-order trap it hits), precedence vs. table property, DataFrame-writer scope | *Setting Hudi options for a whole Spark session* | Spark 3.5 |
+| `run_flink_source_v2.sh` | Flink's FLIP-27 Source V2 opt-in (`read.source-v2.enabled`), batch and streaming reads | *Reading with Flink's Source V2* | Flink 1.20 cluster running |
+
+Paths default to `/tmp/hudiinaction/chapter09/<example>`. Most scripts respect a `BASE_PATH`
+environment variable to relocate them.
+
+## Bootstrap example in detail (not in the chapter)
+
+The bootstrap example (`generate_source_data.sh` → `run_bootstrap.sh` → `verify_bootstrap.sh` →
+`show_layout.sh`) is the chapter's *Running a bootstrap* / *Living with a bootstrapped table*
+walkthrough: adopting a directory of existing Parquet as a Hudi table without rewriting it, using
+`BootstrapRegexModeSelector` to apply `METADATA_ONLY` to older partitions and `FULL_RECORD` to
+newer ones.
+
+### What this shows
+
+- A bootstrap that references existing files in place rather than copying them
+- `BootstrapRegexModeSelector` applying `METADATA_ONLY` to partitions matching
+  `trip_date=202[0-4]-.*` and `FULL_RECORD` to everything newer
+- The skeleton files, the bootstrap index under `.hoodie/.aux/.bootstrap/`, and the source
+  files the metadata-only partitions still depend on
+- The Hudi metadata columns being available on rows whose data never moved
+
+### What to look for
 
 The difference between the two modes is in what each base file contains, which
 `verify_bootstrap.sh` prints by reading the files directly, without going through Hudi:
@@ -135,7 +232,7 @@ WARN HFileBootstrapIndexReader: No value found for partition key (trip_date=2025
 Those are the full-record partitions, which have no bootstrap index entry because they do
 not reference anything.
 
-## Two constraints the example ran into
+### Two constraints the example ran into
 
 Both are real at Hudi 1.2.0, and both are set in `bootstrap_trips.scala`:
 
@@ -156,14 +253,7 @@ half that default is only a ceiling, so five partitions get five tasks either wa
 full-record half passes it through as the bulk-insert shuffle parallelism, where eight rows
 would otherwise be shuffled into 1500 partitions.
 
-## Cleaning up
-
-```bash
-./scripts/teardown.sh          # removes /tmp/hudiinaction/chapter09
-docker compose down -v         # if you used the container
-```
-
-## Differences from the chapter's snippet
+### Differences from the chapter's snippet
 
 The chapter prints the same job with `s3://` paths, since that is where the problem lives in
 practice. These scripts use local directories so the example runs on a laptop. They also
@@ -176,3 +266,18 @@ comment in `bootstrap_trips.scala`: `hoodie.metadata.index.column.stats.enable=f
 `hoodie.table.ordering.fields=updated_at`, which the run requires for the reasons above, and
 `hoodie.bootstrap.parallelism=4`, which just keeps a laptop run quick. Every other Hudi
 option matches the chapter.
+
+## Cleaning up
+
+```bash
+./scripts/teardown.sh          # removes /tmp/hudiinaction/chapter09
+docker compose down -v         # if you used the container
+```
+
+## Verification
+
+`/Users/saga/workspace/codope/hudi_packt/ch9_v2_run_log_snippets.md` (outside this repo) records,
+for every numbered TODO in the chapter draft, the exact statement run, the exact unedited output,
+and whether it matched the draft's printed text. `ch9_v2_run_log_spark35.md` and
+`ch9_v2_run_log_spark4_flink_polaris.md` hold the earlier, broader verification passes this example
+set grew out of.
