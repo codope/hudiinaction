@@ -70,8 +70,10 @@ spark.sql(s"REFRESH TABLE $tableName")
 val totalFiles = spark.sql(s"SELECT count(distinct _hoodie_file_name) as f FROM $tableName").collect()(0).getAs[Long]("f")
 println(s"Loaded ${spark.table(tableName).count()} rows into $tableName across $totalFiles base files (single partition)")
 
-val aDatePresent = spark.sql(s"SELECT from_unixtime(ts, 'yyyy-MM-dd') AS d FROM $tableName LIMIT 1").collect()(0).getAs[String]("d")
-println(s"A date present in the data (used in the chapter's exact query below): $aDatePresent")
+// The chapter queries a fixed date. Batch 10 starts at 2023-11-26 12:00 UTC, so its 40 rows fall on
+// that calendar day in every session time zone between UTC-11 and UTC+11.
+val aDatePresent = "2023-11-26"
+println(s"Date used in the chapter's exact query below: $aDatePresent")
 
 spark.sql("SET hoodie.write.lock.provider=org.apache.hudi.client.transaction.lock.InProcessLockProvider")
 spark.sql(s"CREATE INDEX record_index ON $tableName (ride_id)")
