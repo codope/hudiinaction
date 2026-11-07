@@ -25,8 +25,8 @@ Each chapter's README lists the exact versions it was tested with. In general yo
 
 ### Software Requirements
 - **Apache Spark** 3.5 with Scala 2.12 (tested on 3.5.6). Chapter 9's VARIANT examples also need Spark 4.1 with Scala 2.13.
-- **Java** 11 (Java 17 for Chapter 9)
-- **Apache Hudi** 1.2.0 or 1.2.1, depending on the chapter. The scripts pull the bundles via `--packages` or download them.
+- **Java** 11 or 17
+- **Apache Hudi** 1.2.0 or later. The scripts pull the bundles via `--packages` or download them.
 - **Apache Flink** 1.20 for Chapter 9's Flink examples (Chapter 7 runs Flink inside Docker)
 - **Docker** and Docker Compose for Chapters 6 and 7 (optional for Chapter 2)
 - **Python** 3 for Chapter 4's `ai_ml/` examples
