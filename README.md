@@ -1,37 +1,40 @@
-# Hudi In Action
+# Open Lakehouses for BI to AI with Apache Hudi
 
-Welcome to the code repository for the upcoming book **"Hudi In Action"**. This repository contains hands-on examples, tutorials, and code samples that demonstrate Apache Hudi's capabilities for building robust data lakes.
+Welcome to the code repository for **Open Lakehouses for BI to AI with Apache Hudi**, published by Packt. This repository contains hands-on examples, tutorials, and code samples that demonstrate Apache Hudi's capabilities for building robust data lakes.
 
 ## 📖 About the Book
 
-"Hudi In Action" is a comprehensive guide to [Apache Hudi](https://hudi.apache.org/), covering everything from basic concepts to advanced production patterns. The book provides practical examples and real-world scenarios to help you master Hudi for your data engineering needs.
+*Open Lakehouses for BI to AI with Apache Hudi* is a comprehensive guide to [Apache Hudi](https://hudi.apache.org/), covering everything from basic concepts to advanced production patterns. The book provides practical examples and real-world scenarios to help you master Hudi for your data engineering needs.
 
 ## 🗂️ Repository Structure
 
-```
-hudiinaction/
-├── chapter02/                          # Getting Started with Hudi
-│   ├── hudi_pipeline_quickstart.scala  # Comprehensive Hudi tutorial
-│   ├── trips_0.gz                      # NYC Taxi dataset sample (~1M rows)
-│   └── README.md                       # Chapter-specific instructions
-└── README.md                           # This file
-```
+The code is organized by chapter. Each folder is self-contained, with its own README, sample data, and run scripts.
 
-Each chapter contains its own README with specific learning objectives, setup instructions, and detailed guidance.
+| Folder | Chapter | Runs on |
+|---|---|---|
+| [`chapter02`](chapter02) | Chapter 2: Apache Hudi Essentials and Quickstart | Spark 3.5, Hudi 1.2.0; Docker optional |
+| [`chapter03`](chapter03) | Chapter 3: Apache Hudi ingestion patterns and write workflows | Spark 3.5, Hudi 1.2.0 |
+| [`chapter04`](chapter04) | Chapter 4: Querying Hudi tables | Spark 3.5, Hudi 1.2.1; Python for `ai_ml/` |
+| [`chapter06`](chapter06) | Chapter 6: Building a Real-Time Marketplace Payout Lakehouse with Apache Hudi | Spark 3.5, Hudi 1.2.1, Docker (Kafka) |
+| [`chapter07`](chapter07) | Chapter 7: Building a Streaming and CDC Lakehouse with Apache Hudi and Flink | Docker only (Flink 1.20, Hudi 1.2.0) |
+| [`chapter09`](chapter09) | Chapter 9: Advanced Lakehouse Capabilities | Spark 3.5 and 4.1, Flink 1.20, Hudi 1.2.1 |
 
 ## 📋 Prerequisites
 
-Before running the examples, ensure you have:
+Each chapter's README lists the exact versions it was tested with. In general you need:
 
 ### Software Requirements
-- **Apache Spark** 3.5+ with Scala 2.12
-- **Java** 8 or 11
-- **Apache Hudi** 1.0.2+ (included via Spark packages)
+- **Apache Spark** 3.5 with Scala 2.12 (tested on 3.5.6). Chapter 9's VARIANT examples also need Spark 4.1 with Scala 2.13.
+- **Java** 11 (Java 17 for Chapter 9)
+- **Apache Hudi** 1.2.0 or 1.2.1, depending on the chapter. The scripts pull the bundles via `--packages` or download them.
+- **Apache Flink** 1.20 for Chapter 9's Flink examples (Chapter 7 runs Flink inside Docker)
+- **Docker** and Docker Compose for Chapters 6 and 7 (optional for Chapter 2)
+- **Python** 3 for Chapter 4's `ai_ml/` examples
 
 ### Hardware Requirements
-- At least 4GB RAM available for Spark
+- At least 4 GB RAM for Spark; Chapter 7's Docker stack (Flink, Kafka, MySQL) needs 6-8 GB
 - 2+ CPU cores recommended
-- ~2GB disk space for sample data and tables
+- ~2 GB disk space for sample data and tables
 
 ## 🚀 Getting Started
 
@@ -51,12 +54,12 @@ Found an issue or want to improve the examples? Contributions are welcome! Pleas
 
 ## 📄 License
 
-This code is provided as supplementary material for "Hudi In Action". Please refer to the book's license terms for usage restrictions.
+This code is provided as supplementary material for *Open Lakehouses for BI to AI with Apache Hudi* and is released under the [MIT License](LICENSE).
 
 ## 📧 Support
 
 For questions about the book or code examples:
-- Check the [Issues](https://github.com/your-username/hudiinaction/issues) page
+- Check the [Issues](https://github.com/PacktPublishing/Building-Production-Lakehouses-with-Apache-Hudi/issues) page
 - Refer to the [Apache Hudi documentation](https://hudi.apache.org/)
 - Visit the [Apache Hudi community](https://hudi.apache.org/community/)
 
