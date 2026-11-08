@@ -1,0 +1,33 @@
+# Chapter 10, "Deriving table services, retention, and concurrency" - Hudi Architect checkpoint.
+#
+# Archival bounds, derived from the 5-minute commit cadence and the 48-hour cleaner window:
+#   commits per day = 1440 / 5             = 288
+#   cleaner commits = 288 x 2 days          = 576
+#   keep minimum    = ceil(576 x 1.10)      = 634
+#   keep maximum    = ceil(634 x 1.20)      = 761
+# A starting relationship, not a Hudi formula: real workloads add empty commits, retries, and
+# rollbacks. At daily cadence or slower, emit no archival bounds and accept the defaults.
+
+services:
+  compaction: {deployment: async_in_process, trigger: 5 delta commits}
+  cleaner:    {policy: KEEP_LATEST_BY_HOURS, hours_retained: 48}
+  archival:   {keep_min_commits: 634, keep_max_commits: 761}   # derived from 5-min cadence
+  clustering: {initial_state: disabled, activation: benchmark_and_review}
+concurrency:
+  mode: OPTIMISTIC_CONCURRENCY_CONTROL
+  writers: [hudi_streamer_continuous, nightly_correction_job]
+  lock_provider: org.apache.hudi.aws.transaction.lock.DynamoDBBasedImplicitPartitionKeyLockProvider
+catalog_sync:
+  target: glue
+  registers: [trip_updates_ro, trip_updates_rt, trip_updates]
+  condition_sync: true
+  required_bundle: hudi-aws-bundle
+
+assumed:
+  - five delta commits is an adequate compaction trigger at this volume
+  - 48 hours covers the slowest incremental consumer
+
+open_blocking_launch:
+  - confirm the lock provider against the platform standard
+  - verify the correction job carries both the concurrency block and the AWS bundle
+  - confirm which consumers read _ro versus _rt

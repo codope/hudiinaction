@@ -1,0 +1,21 @@
+# Chapter 10, "Deriving the ingestion and table architecture" - Hudi Architect checkpoint.
+# Confirmed decisions for trip_updates.
+
+engine: spark
+source: kafka_avro_schema_registry
+writer: hudi_streamer_continuous
+operation: upsert
+record_key: trip_id
+ordering_field: updated_at
+table_type: MERGE_ON_READ
+partitioning: {column: trip_date, granularity: day, stable: true}
+index: {type: RECORD_LEVEL_INDEX, scope: PARTITIONED}
+metadata_fields: enabled
+
+assumed:
+  - the transformation remains stateless
+  - updates stay recent-concentrated
+
+open_blocking_launch:
+  - validate that updated_at reflects source ordering under replay
+  - confirm corrections preserve the original trip_date

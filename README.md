@@ -15,9 +15,11 @@ The code is organized by chapter. Each folder is self-contained, with its own RE
 | [`chapter02`](chapter02) | Chapter 2: Apache Hudi Essentials and Quickstart | Spark 3.5, Hudi 1.2.0; Docker optional |
 | [`chapter03`](chapter03) | Chapter 3: Apache Hudi ingestion patterns and write workflows | Spark 3.5, Hudi 1.2.0 |
 | [`chapter04`](chapter04) | Chapter 4: Querying Hudi tables | Spark 3.5, Hudi 1.2.1; Python for `ai_ml/` |
+| [`chapter05`](chapter05) | Chapter 5: Managing Tables Using Table Services | Spark 3.5, Hudi 1.2.1 |
 | [`chapter06`](chapter06) | Chapter 6: Building a Real-Time Marketplace Payout Lakehouse with Apache Hudi | Spark 3.5, Hudi 1.2.1, Docker (Kafka) |
 | [`chapter07`](chapter07) | Chapter 7: Building a Streaming and CDC Lakehouse with Apache Hudi and Flink | Docker only (Flink 1.20, Hudi 1.2.0) |
 | [`chapter09`](chapter09) | Chapter 9: Advanced Lakehouse Capabilities | Spark 3.5 and 4.1, Flink 1.20, Hudi 1.2.1 |
+| [`chapter10`](chapter10) | Chapter 10: Designing Production Lakehouse Pipelines | Design files and configuration for review (Kafka, S3, DynamoDB, Glue); Hudi 1.2.1 |
 
 ## 📋 Prerequisites
 
@@ -59,7 +61,7 @@ This code is provided as supplementary material for *Open Lakehouses for BI to A
 ## 📧 Support
 
 For questions about the book or code examples:
-- Check the [Issues](https://github.com/PacktPublishing/Building-Production-Lakehouses-with-Apache-Hudi/issues) page
+- Check the [Issues](https://github.com/PacktPublishing/Open-Lakehouses-for-BI-to-AI-with-Apache-Hudi/issues) page
 - Refer to the [Apache Hudi documentation](https://hudi.apache.org/)
 - Visit the [Apache Hudi community](https://hudi.apache.org/community/)
 

@@ -1,0 +1,45 @@
+# Chapter 10, "Designing for scale and query performance" - Hudi Architect checkpoint.
+#
+# Record-level index sizing, from the busiest projected partition rather than the average:
+#   (100,000,000 records x 50 bytes) / (500 MB per file group) = 5e9 / 524,288,000 ~ 9.54
+# The design pins min == max at twelve rather than leaving a range for Hudi to estimate within;
+# the chapter's "Why that number needs a second look" explains why a range under-sizes.
+
+record_level_index:
+  scope: partitioned
+  projected_peak_records_per_partition: 100000000
+  planning_bytes_per_record: 50
+  file_groups_per_partition: 12        # min == max, pinned deliberately
+read_optimization:
+  partition_pruning: trip_date
+  column_stats: [city_id, updated_at, fare_amount]
+  secondary_indexes: deferred_until_measured
+clustering: {initial_state: disabled, activation: benchmark_and_review}
+
+assumed:
+  - UUID-shaped keys at ~50 bytes per index record
+  - the busiest-day figure is a projection rather than a recent observation
+
+durable:
+  - index file-group count (joins table type, partitioning, and record key)
+
+deferred_with_trigger:
+  - clustering
+  - secondary indexes
+  - final parallelism and file-sizing values
+
+revisit_conditions:
+  index_sizing: >-
+    before launch if the busiest-day projection exceeds 100 million records or key width changes
+    materially; afterwards a higher minimum fixes new partitions and only a rebuild fixes
+    existing ones
+  data_skipping_columns: >-
+    when the top predicates change, or when metadata maintenance grows into a significant share
+    of commit time
+  secondary_index: >-
+    when a repeated selective predicate still scans a large fraction of files after pruning and
+    column statistics
+  clustering: >-
+    when the small-file ratio exceeds the platform's threshold, or when dashboard scans repeatedly
+    read far more than they return
+  partitioning: only through a migration design
