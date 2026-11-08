@@ -73,15 +73,16 @@ for (batch <- 1 to 15) {
     s"${completedCleans(inlinePath)} clean(s)")
 }
 
-// The other two configurations, each on its own table. Time-based retention keeps every version
-// written in the last 24 hours, so nothing is cleaned in this short run.
+// The other two configurations, each on its own table. The async cleaner starts at the beginning
+// of each write, so it runs one commit behind the inline cleaner. Time-based retention keeps every
+// version written in the last 24 hours, so nothing is cleaned in this short run.
 for ((name, opts) <- Seq("events_clean_async" -> (inlineClean ++ asyncClean), "events_clean_hours" -> byHours)) {
   val path = s"$basePath/$name"
-  for (batch <- 1 to 12) {
+  for (batch <- 1 to 15) {
     events(0L, 5000L, batch).write.format("hudi").options(commonOpts ++ opts)
       .option("hoodie.table.name", name).mode("append").save(path)
   }
-  println(s"\n$name after 12 commits: ${baseFileVersions(path)} base file versions, ${completedCleans(path)} clean(s)")
+  println(s"\n$name after 15 commits: ${baseFileVersions(path)} base file versions, ${completedCleans(path)} clean(s)")
 }
 
 System.exit(0)

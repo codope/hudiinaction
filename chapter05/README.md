@@ -51,9 +51,16 @@ prints what changed on the timeline or in the file layout, and exits. To run one
   `hoodie.datasource.write.precombine.field` is deprecated in 1.x.
 - **Record index key.** `hoodie.metadata.record.index.enable` is now an alias of
   `hoodie.metadata.global.record.level.index.enable`; the properties files use the current key.
+- **Schedule-only compaction.** `03_schedule_compaction.scala` also sets
+  `hoodie.compact.inline=false`. The Spark datasource turns inline compaction on by default for
+  Merge-on-Read batch writes, and Hudi rejects it together with `hoodie.compact.schedule.inline=true`.
 - **Async indexing writer.** The writer also sets `hoodie.metadata.index.async=true` and enables the
   record index from the start. With both set, the writer leaves building the index to HoodieIndexer
-  and keeps it up to date afterwards, which is the requirement the chapter's note describes.
+  and keeps it up to date afterwards, which is the requirement the chapter's note describes. It
+  also sets `hoodie.metadata.streaming.write.enabled=false`: in 1.2.1, Spark's default streaming
+  metadata writes try to update the enabled record index before HoodieIndexer has built it, and
+  the writer's first commit fails with `Partition record_index should be part of inflight
+  metadata partitions`.
 - **HoodieIndexer flags.** `--parallelism` is required in 1.2.1.
 - **Record key.** The chapter's `trip_id`, `vendor_id`, and `updated_time` fields are not in the NYC
   sample, so the indexing example uses Chapter 3's six-column key and `date_col` partitioning.

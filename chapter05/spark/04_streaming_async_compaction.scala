@@ -51,6 +51,8 @@ val query = {
 }
 
 query.awaitTermination(runSeconds * 1000L)
+// Let the running micro-batch commit first, so stop() does not interrupt a write.
+while (query.status.isTriggerActive) Thread.sleep(100)
 query.stop()
 
 val mc = HoodieTableMetaClient.builder().setConf(HadoopFSUtils.getStorageConf()).setBasePath(tablePath).build()

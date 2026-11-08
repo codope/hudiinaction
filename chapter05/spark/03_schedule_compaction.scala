@@ -3,7 +3,11 @@
 //
 // After the default trigger of 5 delta commits, the writer leaves a compaction plan in the
 // REQUESTED state. Here CALL run_compaction executes it; in production this is a separate job,
-// such as HoodieCompactor (see the README), which may need a lock provider.
+// such as HoodieCompactor, which may need a lock provider.
+//
+// The Spark datasource turns inline compaction on by default for Merge-on-Read batch writes, and
+// Hudi rejects inline and schedule-only compaction together, so the writer sets
+// hoodie.compact.inline=false explicitly.
 
 import java.io.File
 import scala.collection.JavaConverters._
@@ -45,6 +49,7 @@ val writeOpts = Map(
   "hoodie.datasource.write.recordkey.field" -> "id",
   "hoodie.datasource.write.partitionpath.field" -> "datestr",
   "hoodie.table.ordering.fields" -> "ts",
+  "hoodie.compact.inline" -> "false",                           // overrides the MoR default
   "hoodie.compact.schedule.inline" -> "true")                   // plans only
 
 def write(df: DataFrame, operation: String): Unit =
