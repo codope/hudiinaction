@@ -55,6 +55,26 @@ Or type `:paste`, paste one section, and press Ctrl+D. Paste mode is required be
 multi-line snippets begin continuation lines with a dot, which the plain spark-shell prompt
 would evaluate one line at a time.
 
+### PySpark version
+
+`hudi_write_operation_tutorial.py` runs the same eight sections with PySpark. Pass the input path
+in `INPUT_PATH` (or edit `input_path` at the top of the file) and run it with `spark-submit` and
+the same options as `spark-shell`:
+
+```bash
+INPUT_PATH=/path/to/hudiinaction/chapter02/trips_0 \
+spark-submit --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:1.2.1 \
+  --driver-memory 4g \
+  --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
+  --conf 'spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension' \
+  --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog' \
+  chapter03/hudi_write_operation_tutorial.py
+```
+
+The same options start an interactive `pyspark` shell, where you can paste one section at a
+time. Run on Spark 3.5.6, Java 17, Python 3.9 and Hudi 1.2.1 from an empty table, it prints the
+same counts as the table below.
+
 ### Expected results
 
 Every write is followed by a row count per partition (`vendor_id`). From a run on Spark 3.5.6,

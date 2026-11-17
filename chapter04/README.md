@@ -6,6 +6,7 @@ Companion code for the chapter's examples, on a sample of the TPC-DS `store_sale
 | File | What it covers |
 |---|---|
 | `hudi_querying_tutorial.scala` | Create the Hudi table; query it with the Spark DataSource API and Structured Streaming |
+| `*.py` next to each `.scala` file | PySpark versions of the same examples (see *PySpark versions* below) |
 | `spark_sql_queries.sql` | The same table from `spark-sql`: snapshot query, `CALL show_commits`, `hudi_table_changes` |
 | `query_types.scala` | Snapshot, read-optimized, time travel, incremental (`latest_state`), and CDC queries |
 | `metasync/` | Hive Metastore, AWS Glue, BigQuery, and DataHub sync |
@@ -62,6 +63,27 @@ For Spark SQL:
 ```bash
 spark-sql <same options as above> -f chapter04/spark_sql_queries.sql
 ```
+
+### PySpark versions
+
+`hudi_querying_tutorial.py`, `query_types.py`, `metasync/0*_sync.py` and
+`ai_ml/make_*_table*.py` are PySpark versions of the Scala files with the same names. Run them
+with `spark-submit` and the same options as `spark-shell`:
+
+```bash
+spark-submit <same options as above> chapter04/hudi_querying_tutorial.py
+spark-submit <same options as above> chapter04/query_types.py
+```
+
+Two differences from the Scala files:
+
+- `query_types.py` does not need variables from the tutorial's session, so it runs as its own job
+  (the tutorial must still have created `/tmp/hudi_demo_tbl`).
+- Under `spark-submit`, the tutorial's streaming query processes its first micro-batch and stops.
+  In an interactive `pyspark` shell you can leave it running and call `query.stop()` yourself.
+
+Run on Spark 3.5.6, Java 17, Python 3.9 and Hudi 1.2.1 from empty paths, the PySpark files give
+the results in the next table. The Glue, BigQuery and DataHub scripts were not run, as for Scala.
 
 ## Expected results
 

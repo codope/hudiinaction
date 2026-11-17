@@ -75,6 +75,39 @@ sbt clean package
 
 ---
 
+# 🐍 Python Version (no sbt)
+
+Every Spark job in this chapter also has a PySpark version in `pyspark/`, and the event producer
+has a plain Python version, so the whole demo runs without Scala or sbt. You need Python 3.8 or
+later and the producer's Kafka client:
+
+pip install -r pyspark/requirements.txt
+
+Run the scripts from the `chapter06` directory, as with the Scala ones. Each Scala script has a
+Python counterpart:
+
+| Step | Scala (needs `sbt clean package`) | Python |
+|---|---|---|
+| Produce events | `run_producer.sh` | `run_producer_python.sh` |
+| Raw ingestion | `run_raw_ingestion.sh` | `run_raw_ingestion_pyspark.sh` |
+| Silver HoodieStreamer | `run_silver_hoodiestreamer.sh` | `run_silver_hoodiestreamer_sql.sh` |
+| Savepoints | `create_demo_savepoints.sh`, `restore_demo_savepoints.sh` | `create_demo_savepoints_pyspark.sh`, `restore_demo_savepoints_pyspark.sh` |
+| GDPR delete | `run_gdpr_delete.sh` | `run_gdpr_delete_pyspark.sh` |
+| Time travel | `run_time_travel.sh` | `run_time_travel_pyspark.sh` |
+
+The arguments are the same, so every command in the sections below works with the Python script
+in its place.
+
+The silver job is the one that changes approach. `VendorPayoutTransformer` is a Scala class
+that HoodieStreamer loads by name, so it cannot be written in Python. Its logic is a single
+projection, so `run_silver_hoodiestreamer_sql.sh` uses Hudi's built-in `SqlQueryBasedTransformer`
+with the same query, in `conf/silver-hoodiestreamer-sql.properties`, and runs Hudi's utilities
+bundle (downloaded once into `/tmp/hudi_bundles`) as the application jar. The chapter describes
+the custom class; the SQL version writes the same silver rows (only `last_updated_ts`, the
+time of the run, differs).
+
+---
+
 
 ---
 

@@ -14,6 +14,7 @@ project/project/
 *.log
 
 # Build artifacts
+__pycache__/
 *.jar
 *.class
 

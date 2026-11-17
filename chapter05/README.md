@@ -12,6 +12,7 @@ rollback, savepoint and restore, and asynchronous indexing.
 | `spark/05_inline_clustering.scala` | Inline clustering with size-based grouping and a sort | *Configuring Inline Clustering* |
 | `spark/06_cleaning.scala` | Inline, async, and time-based cleaner policies | *Configuring Cleaner policies* |
 | `spark/07_recovery.scala` | Rollback, savepoint, and restore through Spark SQL procedures | *Recovering from failures and disasters* |
+| `pyspark/0*.py` | PySpark versions of the seven `spark/` examples, same names (see *PySpark versions* below) | |
 | `cli/hudi_cli_recovery.md` | The same recovery steps with the Hudi CLI, as the chapter shows them | *Recovering from failures and disasters* |
 | `scripts/run_streamer_compaction.sh` + `streamer/compaction.properties` | HoodieStreamer continuous mode with async compaction | *Configuring compaction with HoodieStreamer* |
 | `scripts/run_async_indexing.sh` + `streamer/write.properties`, `streamer/indexer.properties` | HoodieIndexer builds a record index while HoodieStreamer keeps writing | *Asynchronous indexing* |
@@ -43,6 +44,25 @@ prints what changed on the timeline or in the file layout, and exits. To run one
 ```bash
 ./spark_shell_with_hudi.sh --driver-memory 2g -i ../spark/02_inline_compaction.scala
 ```
+
+### PySpark versions
+
+`pyspark/` holds a PySpark version of each `spark/` example. They report the same results, run with
+`spark-submit`, and need Python 3.8 or later:
+
+```bash
+cd chapter05/scripts
+./run_pyspark_examples.sh                       # all seven, in chapter order
+./run_pyspark_examples.sh 05_inline_clustering  # or just one
+./spark_submit_with_hudi.sh --driver-memory 2g ../pyspark/02_inline_compaction.py
+```
+
+Where the Scala examples read the timeline through `HoodieTableMetaClient`, the PySpark versions
+call Spark SQL procedures instead: `CALL show_timeline(path => ...)` for completed delta
+commits, compactions, replace commits and cleans, and `CALL show_compaction(path => ...)` for
+compaction plans and their state. All seven were run on Spark 3.5.6, Java 17, Python 3.9 and
+Hudi 1.2.1. The HoodieStreamer and HoodieIndexer examples are `spark-submit` commands and
+properties files, the same whichever language you use.
 
 ## Differences from the chapter's snippets
 

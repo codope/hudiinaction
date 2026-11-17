@@ -71,7 +71,7 @@ are called out explicitly; see **Environment notes** above for what each one is 
 | `run_indexes.sh` | `CREATE`/`SHOW`/`DROP`/`REFRESH INDEX`, secondary/expression/bloom-filter indexes on a `rides` table | *Managing indexes with SQL*, *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5, `--driver-memory 2g` |
 | `run_index_pruning_evidence.sh` | Real scan-metric evidence (`numFiles`) that data skipping prunes files for a secondary-index and an expression-index predicate | *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5 |
 | `run_index_pruning_rides.sh` | The chapter's exact two pruning queries against the `rides`/`ride_id` naming | *Looking up records by a non-key column*, *Indexing a derived value* | Spark 3.5, `--driver-memory 2g` |
-| `run_early_conflict.sh` | Datasource-API optimistic concurrency control (OCC) baseline, two writers in one JVM | *Detecting conflicts before the write finishes* | Spark 3.5 |
+| `run_early_conflict.sh` | Datasource-API optimistic concurrency control (OCC), two writers in one JVM on the same file group: on Hudi 1.2.1 the second writer fails at commit, or at once with early conflict detection and `DIRECT` markers | *Detecting conflicts before the write finishes* | Spark 3.5 |
 | `run_early_conflict_lowlevel.sh` | The same conflict via the low-level `SparkRDDWriteClient` API, mirroring Hudi's own multi-writer test | *Detecting conflicts before the write finishes* | Spark 3.5 |
 | `run_early_conflict_lowlevel_detection.sh` | Early conflict detection aborting a doomed writer before it finishes, via markers | *Detecting conflicts before the write finishes* | Spark 3.5 |
 | `run_lock_audit.sh` | Confirms `StorageBasedLockProvider` does not support a local `file://` path (source + exact exception) | *Choosing where the lock lives* | Spark 3.5 |
@@ -92,6 +92,67 @@ are called out explicitly; see **Environment notes** above for what each one is 
 | `run_polaris_hudi_table_repro_hivesync.sh` | **Repro only.** Client bumped to 1.4.0 fixes `CREATE TABLE`, but `INSERT` fails with `HoodieMetaSyncException` under the default `hive` catalog implementation | *Registering tables through Apache Polaris* | Polaris server running, client 1.4.0 |
 | `run_polaris_hudi_table_repro_hivesync_override.sh` | **Repro only.** Confirms a per-table `hoodie.datasource.hive_sync.enable=false` does *not* avoid the above | *Registering tables through Apache Polaris* | Polaris server running, client 1.4.0 |
 
+## PySpark versions
+
+`pyspark/` holds PySpark versions of the examples behind the chapter's sections. Run one by
+name with `scripts/run_pyspark.sh`, which adds the launcher options that example needs (the
+Lance bundle, `--driver-class-path` for the validators, the callback receiver, Spark 4.1 for
+VARIANT, the Polaris catalog settings), or run the Spark 3.5 set with `scripts/run_all_pyspark.sh`:
+
+```bash
+cd chapter09
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+./scripts/run_all_pyspark.sh                        # Spark 3.5 examples, in chapter order
+./scripts/run_pyspark.sh index_pruning_rides        # or one at a time
+
+# VARIANT: Spark 4.1 from SPARK4_HOME, and Python 3.10 or later for PySpark 4.1
+PYSPARK4_PYTHON=python3.13 ./scripts/run_pyspark.sh variant_events
+PYSPARK4_PYTHON=python3.13 ./scripts/run_pyspark.sh variant_pushdown_mor
+./scripts/run_pyspark.sh variant_inspect_parquet_schema   # plain Python, needs pyarrow
+PYSPARK4_PYTHON=python3.13 ./scripts/run_pyspark.sh variant_lance
+
+# Polaris: start and bootstrap the server first, as for the Scala recipe
+./scripts/run_pyspark.sh polaris_hudi_table_working
+```
+
+| PySpark script | Scala original | Notes |
+|---|---|---|
+| `ai_types.py`, `blob_support_tickets.py` | same names | |
+| `variant_events.py`, `variant_pushdown_mor.py`, `variant_lance.py` | same names | Spark 4.1 |
+| `variant_inspect_parquet_schema.py` | same name | Reads the Parquet footer with pyarrow instead of Spark |
+| `lance.py`, `lance_merger_int8.py` | same names | `lance.py` reads which metadata partitions are available with `CALL show_table_properties` instead of `HoodieTableMetaClient`. Case (5) of `lance_merger_int8.py` runs the chapter's current DDL, which names the canonical merger key |
+| `indexes.py`, `index_pruning_rides.py` | same names | Generate the same rides as Scala (a port of `java.util.Random`), so the file counts match the chapter. `index_pruning_rides.py` reads "number of files read" from the Spark UI's REST API, the SQL tab the chapter points to |
+| `early_conflict.py`, `lock_audit.py` | same names | Two Python threads share one Spark application |
+| `validators.py`, `callbacks.py` | same names | |
+| `add_column_default_path.py`, `schema_on_read_control.py`, `schema_ai_types.py` | same names | `schema_on_read_control.py` also sets the column-drop flag before the rename, as the chapter's snippet does |
+| `table_version.py` | same name | |
+| `polaris_hudi_table_working.py` | same name | Uses the chapter's table name, `hudi_rides` |
+
+Run on Spark 3.5.6 and 4.1.3, Java 17, Python 3.9 (3.13 for Spark 4.1) and Hudi 1.2.1, every
+script above gives the results the chapter describes; for example `index_pruning_rides.py`
+reads 14 of 25 files with data skipping on and 1 of 25 for the expression index.
+
+Two things differ from the `spark-shell` runs:
+
+- **`spark-submit` uses the in-memory catalog.** `spark-shell` defaults to the Hive catalog, which
+  is why the Scala schema-evolution examples need the Hive metastore compatibility override and
+  the Polaris recipe sets `spark.sql.catalogImplementation=in-memory`. The PySpark scripts need
+  neither.
+- **`validators.py` exits the JVM itself.** The failed commits leave idle, non-daemon threads
+  behind in Hudi 1.2.1, which keep a `spark-submit` job running after the script ends. The Scala
+  scripts end with `System.exit(0)` for the same reason.
+
+Not ported, because they need a JVM class or are not chapter examples:
+
+| Scala only | Why |
+|---|---|
+| `prewrite_validator.scala` | Defines a `PreWriteValidator` class. Hudi loads validators by class name, so the class has to be compiled JVM code |
+| `early_conflict_lowlevel*.scala` | Call `SparkRDDWriteClient` directly. `early_conflict.py` shows the conflicts through the DataFrame API |
+| `index_pruning_evidence.scala` | The evidence run behind `index_pruning_rides`, whose PySpark version shows the chapter's queries |
+| `polaris_hudi_table_repro_*.scala` | Failure reproductions |
+| Bootstrap, encryption and session-options scripts | Back sections cut from the chapter (see below) |
+| `flink/*.sql` | Flink SQL |
+
 ## Layout
 
 ```
@@ -110,6 +171,8 @@ chapter09/
     http_callback_receiver.py           local HTTP receiver for run_callbacks.sh
   spark/
     *.scala                             one source file per example, matching script names
+  pyspark/
+    *.py                                PySpark versions; scripts/run_pyspark.sh runs them by name
   flink/
     ...                                 Flink job sources for the RLI / Source V2 examples
 ```

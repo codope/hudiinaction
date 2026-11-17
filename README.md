@@ -21,6 +21,22 @@ The code is organized by chapter. Each folder is self-contained, with its own RE
 | [`chapter09`](chapter09) | Chapter 9: Advanced Lakehouse Capabilities | Spark 3.5 and 4.1, Flink 1.20, Hudi 1.2.1 |
 | [`chapter10`](chapter10) | Chapter 10: Designing Production Lakehouse Pipelines | Design files and configuration for review (Kafka, S3, DynamoDB, Glue); Hudi 1.2.1 |
 
+### Scala and PySpark
+
+The Spark examples are written in Scala, and every chapter with Spark code also has PySpark
+versions of them:
+
+- **Chapter 2:** PySpark notebooks in `chapter02/docker/notebooks`.
+- **Chapters 3 and 4:** a `.py` file next to each `.scala` file, with the same name.
+- **Chapters 5 and 9:** a `pyspark/` folder next to `spark/`, with run scripts in `scripts/`.
+- **Chapter 6:** a `pyspark/` folder. The silver job runs Hudi's `SqlQueryBasedTransformer`
+  instead of the Scala transformer, so a Python-only setup does not need sbt.
+
+Each chapter's README shows how to run them. A few examples stay Scala-only because they need a
+JVM class: Chapter 9's custom pre-write validator, its low-level write-client examples, and the
+examples for sections that were cut from the chapter (see `chapter09/README.md`). The Flink
+examples (Chapter 7, and Chapter 9's record-level index job) are Flink SQL.
+
 ## 📋 Prerequisites
 
 Each chapter's README lists the exact versions it was tested with. In general you need:
@@ -31,7 +47,8 @@ Each chapter's README lists the exact versions it was tested with. In general yo
 - **Apache Hudi** 1.2.0 or later. The scripts pull the bundles via `--packages` or download them.
 - **Apache Flink** 1.20 for Chapter 9's Flink examples (Chapter 7 runs Flink inside Docker)
 - **Docker** and Docker Compose for Chapters 6 and 7 (optional for Chapter 2)
-- **Python** 3 for Chapter 4's `ai_ml/` examples
+- **Python** 3.8 or later for the PySpark versions and Chapter 4's `ai_ml/` examples (3.10 or later
+  for Chapter 9's VARIANT examples, because PySpark 4.1 requires it)
 
 ### Hardware Requirements
 - At least 4 GB RAM for Spark; Chapter 7's Docker stack (Flink, Kafka, MySQL) needs 6-8 GB
