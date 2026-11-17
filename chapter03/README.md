@@ -15,6 +15,9 @@ Companion code for the chapter's two hands-on examples:
 - Apache Hudi 1.2.0 (bundles are pulled by `--packages` or downloaded by the streamer script)
 - macOS or Linux. On Windows, run everything inside WSL2 and keep the data under the WSL2 file
   system (for example `/tmp`), not under `/mnt/c`.
+- At least 5 GB of free disk space for the HoodieStreamer example. The table grows past 2 GB, and
+  Spark needs room for temporary files on top of that; a full disk fails the run with
+  `No space left on device`.
 
 ## 1. Write operations tutorial
 
@@ -158,7 +161,9 @@ Ctrl+C. The timeline in `/tmp/hudi-deltastreamer-ny/.hoodie/timeline/` from the 
 | compaction | 13:56:28 | 13:56:29 | five delta commits after the first compaction |
 | deltacommit 11 | 13:56:28 | 13:57:31 | last input file |
 
-Times will differ on your machine; the order of events should not.
+Times will differ on your machine; the order of events should not. A clean action may also
+appear after the last delta commit; it removes file versions that compaction made obsolete and
+does not change the data.
 
 Then check the data in spark-shell:
 

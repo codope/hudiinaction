@@ -53,7 +53,7 @@ Each chapter's README lists the exact versions it was tested with. In general yo
 ### Hardware Requirements
 - At least 4 GB RAM for Spark; Chapter 7's Docker stack (Flink, Kafka, MySQL) needs 6-8 GB
 - 2+ CPU cores recommended
-- ~2 GB disk space for sample data and tables
+- ~2 GB disk space for sample data and tables; Chapter 3's HoodieStreamer example needs at least 5 GB free
 
 ## 🚀 Getting Started
 
