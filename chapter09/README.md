@@ -128,8 +128,8 @@ PYSPARK4_PYTHON=python3.13 ./scripts/run_pyspark.sh variant_lance
 | `table_version.py` | same name | |
 | `polaris_hudi_table_working.py` | same name | Uses the chapter's table name, `hudi_rides` |
 
-Run on Spark 3.5.6 and 4.1.3, Java 17, Python 3.9 (3.13 for Spark 4.1) and Hudi 1.2.1, every
-script above gives the results the chapter describes; for example `index_pruning_rides.py`
+Every script above was run on Spark 3.5.6 and 4.1.3, Java 17, Python 3.9 (3.13 for Spark 4.1)
+and Hudi 1.2.1, and the results the chapter prints reproduce: for example, `index_pruning_rides.py`
 reads 14 of 25 files with data skipping on and 1 of 25 for the expression index.
 
 Two things differ from the `spark-shell` runs:

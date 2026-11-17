@@ -130,6 +130,8 @@ def print_scan_metrics(run):
         if scans:
             break
         time.sleep(0.1)
+    if not scans:
+        raise RuntimeError("No completed query with a scan node in the Spark UI's SQL tab; is spark.ui.enabled false?")
     last_id = max(i for i, _ in scans)
     for i, node in scans:
         if i == last_id:

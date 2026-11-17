@@ -17,7 +17,7 @@ mkdir -p "$BUNDLES"
 spark-submit \
   --conf 'spark.serializer=org.apache.spark.serializer.KryoSerializer' \
   --master local[2] \
-  --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:${HUDI_VERSION} \
+  --packages org.apache.hudi:hudi-spark3.5-bundle_2.12:"${HUDI_VERSION}" \
   --class org.apache.hudi.utilities.streamer.HoodieStreamer \
   "$UTILITIES_JAR" \
   --table-type MERGE_ON_READ \
