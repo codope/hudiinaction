@@ -66,12 +66,25 @@ docker compose up -d
 ## 2. Build the project
 sbt clean package
 
-## 3. Start ingestion pipelines
+## 3. Produce normal events
+./scripts/run_producer.sh normal 2000
+
+Produce events before starting raw ingestion. The first send creates the `payments.events` topic,
+and the raw ingestion job fails with `UnknownTopicOrPartitionException` if the topic does not
+exist yet.
+
+## 4. Start raw ingestion (in its own terminal)
 ./scripts/run_raw_ingestion.sh
+
+The job keeps running and commits a micro-batch every 5 minutes. The first commit is written
+straight away; wait for it before starting the silver job:
+
+ls /tmp/hudi/raw/payments/.hoodie/timeline/*.commit
+
+## 5. Start the silver pipeline (in its own terminal)
 ./scripts/run_silver_hoodiestreamer.sh
 
-## 4. Produce normal events
-./scripts/run_producer.sh normal 2000
+Both jobs run until you stop them, so send further events from a third terminal.
 
 ---
 
@@ -150,6 +163,8 @@ Restart both pipelines, then send the same events with correct values:
 
 chapter06/
 ├── conf/
+├── project/        (sbt version)
+├── pyspark/
 ├── scripts/
 ├── schemas/
 ├── src/
@@ -171,6 +186,9 @@ chapter06/
 
 Kafka not running:
 docker compose up -d
+
+Raw ingestion fails with `UnknownTopicOrPartitionException`:
+the `payments.events` topic does not exist yet. Run the producer first, then restart raw ingestion.
 
 sbt missing:
 brew install sbt
