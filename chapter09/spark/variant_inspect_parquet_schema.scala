@@ -6,12 +6,12 @@
 // is exposed at the user-facing level... every Spark/Hudi schema conversion produces an
 // unshredded VARIANT"); this reads the actual footer rather than trusting that claim.
 //
-// Run scripts/run_variant_events.sh first so the events_cow table already has base files.
+// Run scripts/run_variant_events.sh first so the agent_events table already has base files.
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 val basePath = sys.env.getOrElse("VARIANT_BASE", "/tmp/hudiinaction/chapter09")
-val cowPath  = s"$basePath/variant_cow/events"
+val cowPath  = s"$basePath/variant_cow/agent_events"
 
 val hadoopConf = spark.sparkContext.hadoopConfiguration
 val fs = FileSystem.get(new java.net.URI(cowPath), hadoopConf)

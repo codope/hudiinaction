@@ -81,6 +81,15 @@ def timelineEntries(tablePath: String): Seq[String] = {
   else dir.listFiles().map(_.getName).filterNot(_.endsWith(".crc")).sorted.toSeq
 }
 
+// Instants that are still in flight. A completed instant keeps its .requested and .inflight
+// files next to the completed <requested>_<completed>.<action> file, so an .inflight file
+// alone does not mean the write is still running.
+def pendingInstants(tablePath: String): Seq[String] = {
+  val entries = timelineEntries(tablePath)
+  val completed = entries.filter(_.contains("_")).map(_.split("_")(0)).toSet
+  entries.filter(_.endsWith(".inflight")).map(_.split("\\.")(0)).filterNot(completed)
+}
+
 def rootCauseName(t: Throwable): String = {
   var cur = t
   while (cur.getCause != null && cur.getCause != cur) cur = cur.getCause
@@ -123,7 +132,7 @@ def runScenario(label: String, earlyDetection: Boolean, markerType: String): Uni
     val deadline = System.currentTimeMillis() + 15000
     var sawInflight = false
     while (!sawInflight && System.currentTimeMillis() < deadline) {
-      sawInflight = timelineEntries(tablePath).exists(_.endsWith(".inflight"))
+      sawInflight = pendingInstants(tablePath).nonEmpty
       if (!sawInflight) Thread.sleep(20)
     }
     println(s"Writer B observed Writer A's instant inflight = $sawInflight; timeline now: ${timelineEntries(tablePath).mkString(", ")}")
